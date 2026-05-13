@@ -1,16 +1,22 @@
 package session
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/paperpaper/paperpaper/internal/config"
 )
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type Message struct {
 	RoundNumber int       `json:"round_number"`
@@ -22,7 +28,10 @@ type Message struct {
 }
 
 type Paper struct {
-	ID             int       `json:"id"`
+	// SessionID is the stable identifier used for persistence and /open.
+	// ID is retained only for backward compatibility with older numeric sessions.
+	SessionID      string    `json:"session_id,omitempty"`
+	ID             int       `json:"id,omitempty"`
 	Title          string    `json:"title"`
 	SourceURL      string    `json:"source_url"`
 	Content        string    `json:"content"`
@@ -32,6 +41,19 @@ type Paper struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Messages       []Message `json:"messages"`
+}
+
+func (p *Paper) Ref() string {
+	if p == nil {
+		return ""
+	}
+	if p.SessionID != "" {
+		return p.SessionID
+	}
+	if p.ID > 0 {
+		return fmt.Sprintf("%d", p.ID)
+	}
+	return ""
 }
 
 type Manager struct {
@@ -176,18 +198,16 @@ func (m *Manager) Save() error {
 	return SavePaper(m.paper)
 }
 
-// nextID returns the next available paper ID.
+// nextID returns the next available legacy numeric paper ID.
 func nextID() int {
-	dir := config.PapersDir()
-	entries, err := os.ReadDir(dir)
+	summaries, err := ListPapers()
 	if err != nil {
 		return 1
 	}
 	maxID := 0
-	for _, e := range entries {
-		var id int
-		if _, err := fmt.Sscanf(e.Name(), "%d.json", &id); err == nil && id > maxID {
-			maxID = id
+	for _, p := range summaries {
+		if p.ID > maxID {
+			maxID = p.ID
 		}
 	}
 	return maxID + 1
@@ -196,7 +216,7 @@ func nextID() int {
 func NewPaper(content string, sourceURL string) *Paper {
 	now := time.Now()
 	return &Paper{
-		ID:        nextID(),
+		SessionID: newSessionID(),
 		SourceURL: sourceURL,
 		Content:   content,
 		CreatedAt: now,
@@ -206,6 +226,9 @@ func NewPaper(content string, sourceURL string) *Paper {
 }
 
 func SavePaper(p *Paper) error {
+	if p.SessionID == "" {
+		p.SessionID = newSessionID()
+	}
 	dir := config.PapersDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -214,30 +237,56 @@ func SavePaper(p *Paper) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("%d.json", p.ID)), data, 0644)
+	return os.WriteFile(filepath.Join(dir, p.SessionID+".json"), data, 0644)
 }
 
 func LoadPaper(id int) (*Paper, error) {
-	path := filepath.Join(config.PapersDir(), fmt.Sprintf("%d.json", id))
-	data, err := os.ReadFile(path)
+	return LoadPaperByRef(fmt.Sprintf("%d", id))
+}
+
+func LoadPaperByRef(ref string) (*Paper, error) {
+	path, err := paperPathByRef(ref)
 	if err != nil {
 		return nil, err
 	}
-	var p Paper
-	if err := json.Unmarshal(data, &p); err != nil {
-		return nil, err
-	}
-	return &p, nil
+	return loadPaperPath(path)
 }
 
 func DeletePaper(id int) error {
-	path := filepath.Join(config.PapersDir(), fmt.Sprintf("%d.json", id))
+	return DeletePaperByRef(fmt.Sprintf("%d", id))
+}
+
+func DeletePaperByRef(ref string) error {
+	path, err := paperPathByRef(ref)
+	if err != nil {
+		return err
+	}
 	return os.Remove(path)
 }
 
 type PaperSummary struct {
-	ID    int
-	Title string
+	ID        int
+	SessionID string
+	Title     string
+	UpdatedAt time.Time
+}
+
+func (p PaperSummary) Ref() string {
+	if p.SessionID != "" {
+		return p.SessionID
+	}
+	if p.ID > 0 {
+		return fmt.Sprintf("%d", p.ID)
+	}
+	return ""
+}
+
+func (p PaperSummary) ShortRef() string {
+	ref := p.Ref()
+	if uuidPattern.MatchString(ref) && len(ref) >= 8 {
+		return ref[:8]
+	}
+	return ref
 }
 
 func ListPapers() ([]PaperSummary, error) {
@@ -251,24 +300,39 @@ func ListPapers() ([]PaperSummary, error) {
 	}
 
 	var papers []PaperSummary
+	seen := make(map[string]bool)
 	for _, e := range entries {
-		var id int
-		if _, err := fmt.Sscanf(e.Name(), "%d.json", &id); err != nil {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		p, err := LoadPaper(id)
+		p, err := loadPaperPath(filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue
 		}
+		ref := p.Ref()
+		if ref == "" || seen[ref] {
+			continue
+		}
+		seen[ref] = true
 		title := p.Title
 		if title == "" {
-			title = fmt.Sprintf("Paper #%d", p.ID)
+			if p.SessionID != "" {
+				title = "Paper " + p.SessionID[:8]
+			} else {
+				title = fmt.Sprintf("Paper #%d", p.ID)
+			}
 		}
-		papers = append(papers, PaperSummary{ID: p.ID, Title: title})
+		papers = append(papers, PaperSummary{ID: p.ID, SessionID: p.SessionID, Title: title, UpdatedAt: p.UpdatedAt})
 	}
 
 	sort.Slice(papers, func(i, j int) bool {
-		return papers[i].ID < papers[j].ID
+		if !papers[i].UpdatedAt.Equal(papers[j].UpdatedAt) {
+			return papers[i].UpdatedAt.After(papers[j].UpdatedAt)
+		}
+		if papers[i].ID != papers[j].ID {
+			return papers[i].ID < papers[j].ID
+		}
+		return papers[i].Ref() < papers[j].Ref()
 	})
 
 	return papers, nil
@@ -276,4 +340,89 @@ func ListPapers() ([]PaperSummary, error) {
 
 func EstimateTokens(text string) int {
 	return len(text) / 4
+}
+
+func loadPaperPath(path string) (*Paper, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var p Paper
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, err
+	}
+	if p.SessionID == "" {
+		name := strings.TrimSuffix(filepath.Base(path), ".json")
+		if uuidPattern.MatchString(name) {
+			p.SessionID = name
+		}
+	}
+	return &p, nil
+}
+
+func paperPathByRef(ref string) (string, error) {
+	ref = strings.TrimSpace(strings.TrimSuffix(ref, ".json"))
+	if ref == "" {
+		return "", fmt.Errorf("empty paper ref")
+	}
+	dir := config.PapersDir()
+
+	// Exact UUID/full filename lookup.
+	if uuidPattern.MatchString(ref) {
+		path := filepath.Join(dir, ref+".json")
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	// Short UUID prefix lookup, e.g. /open a1b2c3d4.
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	var matches []string
+	for _, e := range entries {
+		name := strings.TrimSuffix(e.Name(), ".json")
+		if strings.HasSuffix(e.Name(), ".json") && strings.HasPrefix(name, ref) {
+			matches = append(matches, filepath.Join(dir, e.Name()))
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("paper ref %q is ambiguous", ref)
+	}
+
+	// Legacy numeric lookup: first old filename, then scan JSON id fields.
+	legacyPath := filepath.Join(dir, ref+".json")
+	if _, err := os.Stat(legacyPath); err == nil {
+		return legacyPath, nil
+	}
+	var id int
+	if _, err := fmt.Sscanf(ref, "%d", &id); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			path := filepath.Join(dir, e.Name())
+			p, err := loadPaperPath(path)
+			if err == nil && p.ID == id {
+				return path, nil
+			}
+		}
+	}
+
+	return "", os.ErrNotExist
+}
+
+func newSessionID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	hexStr := hex.EncodeToString(b[:])
+	return fmt.Sprintf("%s-%s-%s-%s-%s", hexStr[0:8], hexStr[8:12], hexStr[12:16], hexStr[16:20], hexStr[20:32])
 }

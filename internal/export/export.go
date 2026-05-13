@@ -74,7 +74,7 @@ func ExportToObsidian(cfg *config.Config, p *session.Paper) (string, error) {
 
 	title := p.Title
 	if title == "" {
-		title = fmt.Sprintf("Paper_%d", p.ID)
+		title = fmt.Sprintf("Paper_%s", p.Ref())
 	}
 
 	filename := sanitizeFilename(title) + "_session.md"

@@ -96,7 +96,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "y":
 			if p := m.manager.Paper(); p != nil {
-				session.DeletePaper(p.ID)
+				session.DeletePaperByRef(p.Ref())
 				m.manager.SetPaper(nil)
 				m.phase = PhaseInit
 				m.streamContent = ""
@@ -192,7 +192,7 @@ func (m *Model) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		if len(m.listItems) > 0 {
-			return m.openPaper(m.listItems[m.listCursor].ID)
+			return m.openPaper(m.listItems[m.listCursor].Ref())
 		}
 	case "d":
 		if len(m.listItems) > 0 {
@@ -200,8 +200,8 @@ func (m *Model) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "y":
 		if m.confirmDelete && len(m.listItems) > 0 {
-			id := m.listItems[m.listCursor].ID
-			if err := session.DeletePaper(id); err != nil {
+			ref := m.listItems[m.listCursor].Ref()
+			if err := session.DeletePaperByRef(ref); err != nil {
 				// silently fail
 				_ = err
 			}
@@ -430,15 +430,10 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 
 	case "/open":
 		if len(parts) < 2 {
-			m.viewport.SetContent(bannerStyle.Render("用法: /open <id>"))
+			m.viewport.SetContent(bannerStyle.Render("用法: /open <session-id>"))
 			return m, nil
 		}
-		var id int
-		if _, err := fmt.Sscanf(parts[1], "%d", &id); err != nil {
-			m.viewport.SetContent(bannerStyle.Render("无效的 ID: " + parts[1]))
-			return m, nil
-		}
-		return m.openPaper(id)
+		return m.openPaper(strings.TrimSpace(parts[1]))
 
 	case "/delete":
 		if m.manager.Paper() == nil {
@@ -498,7 +493,7 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 			"可用命令:\n\n" +
 				"  /new [arxiv/url/path]  新建会话（可从 arXiv、URL 或文件加载）\n" +
 				"  /list            会话列表\n" +
-				"  /open <id>       加载历史会话\n" +
+				"  /open <session-id> 加载历史会话（可用 /list 中的短 ID）\n" +
 				"  /delete          删除当前会话\n" +
 				"  /edit            编辑最近问题\n" +
 				"  /del <round>     删除指定轮次\n" +
@@ -598,10 +593,10 @@ func (m *Model) handleExport() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) openPaper(id int) (tea.Model, tea.Cmd) {
-	p, err := session.LoadPaper(id)
+func (m *Model) openPaper(ref string) (tea.Model, tea.Cmd) {
+	p, err := session.LoadPaperByRef(ref)
 	if err != nil {
-		m.viewport.SetContent(bannerStyle.Render(fmt.Sprintf("无法加载论文 #%d: %v", id, err)))
+		m.viewport.SetContent(bannerStyle.Render(fmt.Sprintf("无法加载论文 %s: %v", ref, err)))
 		return m, nil
 	}
 

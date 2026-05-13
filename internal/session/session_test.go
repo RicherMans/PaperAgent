@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/paperpaper/paperpaper/internal/config"
 )
 
 func setupTestDir(t *testing.T) string {
@@ -20,8 +22,11 @@ func TestNewPaper(t *testing.T) {
 
 	p := NewPaper("test content", "https://example.com")
 
-	if p.ID != 1 {
-		t.Errorf("expected ID 1, got %d", p.ID)
+	if p.SessionID == "" {
+		t.Fatal("expected non-empty session ID")
+	}
+	if p.ID != 0 {
+		t.Errorf("new papers should not use legacy numeric IDs, got %d", p.ID)
 	}
 	if p.Content != "test content" {
 		t.Errorf("unexpected content: %s", p.Content)
@@ -71,6 +76,12 @@ func TestSaveAndLoadPaper(t *testing.T) {
 
 	if err := SavePaper(p); err != nil {
 		t.Fatalf("save error: %v", err)
+	}
+	if p.SessionID == "" {
+		t.Fatal("SavePaper should assign a UUID session ID")
+	}
+	if _, err := os.Stat(filepath.Join(config.PapersDir(), p.SessionID+".json")); err != nil {
+		t.Fatalf("expected UUID-named session file: %v", err)
 	}
 
 	loaded, err := LoadPaper(1)

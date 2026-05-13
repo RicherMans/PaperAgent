@@ -202,10 +202,10 @@ func (m *Model) renderList() string {
 	for i, item := range m.listItems {
 		title := item.Title
 		if title == "" {
-			title = fmt.Sprintf("Paper #%d", item.ID)
+			title = "Paper " + item.ShortRef()
 		}
 
-		line := fmt.Sprintf("  %d. %s", item.ID, title)
+		line := fmt.Sprintf("  %s  %s", item.ShortRef(), title)
 
 		if i == m.listCursor {
 			b.WriteString(selectedStyle.Render("▸ " + strings.TrimPrefix(line, "  ")))
