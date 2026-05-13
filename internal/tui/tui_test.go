@@ -1106,10 +1106,41 @@ func TestMouseSelectionCopiesVisibleText(t *testing.T) {
 	m.handleMouseMotion(tea.MouseMotionMsg{X: 10, Y: y, Button: tea.MouseLeft})
 	m.handleMouseRelease(tea.MouseReleaseMsg{X: 10, Y: y, Button: tea.MouseLeft})
 
-	if m.copyStatus == "" {
+	if m.statusNotice == "" {
 		t.Fatal("mouse release after selection should set copy status")
 	}
 	if selected := m.selectedViewportText(); selected == "" {
 		t.Fatal("selected text should not be empty")
+	}
+}
+
+func TestCtrlCRequiresDoublePress(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd != nil {
+		t.Fatal("first Ctrl+C should only arm quit, not return a quit command")
+	}
+	if !m.quitArmed {
+		t.Fatal("first Ctrl+C should arm quit")
+	}
+	if !strings.Contains(m.View().Content, "再按一次 Ctrl+C 退出") {
+		t.Fatal("first Ctrl+C should show confirmation hint")
+	}
+
+	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if m.quitArmed {
+		t.Fatal("ordinary key should disarm quit")
+	}
+
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd != nil {
+		t.Fatal("first Ctrl+C after disarm should not quit")
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("second consecutive Ctrl+C should return a quit command")
 	}
 }

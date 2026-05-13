@@ -81,9 +81,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Global keys
 	if key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))) {
-		m.manager.Save()
-		return m, tea.Quit
+		if m.quitArmed {
+			m.manager.Save()
+			return m, tea.Quit
+		}
+		m.quitArmed = true
+		m.statusNotice = "再按一次 Ctrl+C 退出"
+		return m, nil
 	}
+	m.quitArmed = false
 
 	// Handle confirm delete state (only for non-list modes)
 	if m.confirmDelete && m.mode != ModeList {

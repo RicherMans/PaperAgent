@@ -89,8 +89,9 @@ type Model struct {
 	// Delete confirmation
 	confirmDelete bool
 
-	selection  viewportSelection
-	copyStatus string
+	selection    viewportSelection
+	statusNotice string
+	quitArmed    bool
 
 	err error
 

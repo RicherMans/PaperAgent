@@ -45,7 +45,7 @@ func (m *Model) handleMouseRelease(msg tea.MouseReleaseMsg) (tea.Model, tea.Cmd)
 		return m, nil
 	}
 
-	m.copyStatus = "已复制选中文本到剪贴板"
+	m.statusNotice = "已复制选中文本到剪贴板"
 	return m, tea.SetClipboard(selected)
 }
 

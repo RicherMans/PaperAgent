@@ -166,8 +166,8 @@ func (m *Model) renderStatusBar() string {
 
 	left := fmt.Sprintf("Tokens: %s", formatNumber(tokens))
 	right := fmt.Sprintf("Rounds: %d", rounds)
-	if m.copyStatus != "" {
-		left = m.copyStatus
+	if m.statusNotice != "" {
+		left = m.statusNotice
 	}
 
 	if m.err != nil {
