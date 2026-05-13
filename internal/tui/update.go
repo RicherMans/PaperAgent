@@ -595,18 +595,20 @@ func (m *Model) handleSummarize() (tea.Model, tea.Cmd) {
 func (m *Model) handleExport() (tea.Model, tea.Cmd) {
 	p := m.manager.Paper()
 	if p == nil {
-		m.viewport.SetContent(bannerStyle.Render("没有加载的论文。"))
+		m.statusNotice = "没有加载的论文，无法导出"
 		return m, nil
 	}
 
 	path, err := exportPkg.ExportToObsidian(m.cfg, p)
 	if err != nil {
-		m.viewport.SetContent(bannerStyle.Render(fmt.Sprintf("导出失败: %v", err)))
+		m.statusNotice = fmt.Sprintf("导出失败: %v", err)
 		return m, nil
 	}
 
-	m.viewport.SetContent(bannerStyle.Render(fmt.Sprintf("导出成功!\n\n文件: %s", path)))
-	return m, nil
+	m.statusNotice = fmt.Sprintf("导出成功: %s", path)
+	m.mode = ModeInput
+	m.textarea.Focus()
+	return m, textarea.Blink
 }
 
 func (m *Model) openPaper(ref string) (tea.Model, tea.Cmd) {

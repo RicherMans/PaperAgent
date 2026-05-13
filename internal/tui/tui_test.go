@@ -1313,3 +1313,39 @@ func TestTabCompletesSlashCommand(t *testing.T) {
 		t.Fatalf("expected tab completion to /resume, got %q", got)
 	}
 }
+
+func TestExportShowsStatusWithoutReplacingConversation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Obsidian.VaultPath = t.TempDir()
+	cfg.Obsidian.ExportFolder = "Papers"
+
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+	p := session.NewPaper("paper content", "")
+	p.Title = "Export Test"
+	p.InitialSummary = "summary that should remain visible"
+	p.Messages = []session.Message{
+		{RoundNumber: 0, Role: "user", Content: "question should remain visible", TokenCount: 5},
+		{RoundNumber: 0, Role: "assistant", Content: "answer should remain visible", TokenCount: 5},
+	}
+	m.LoadPaper(p)
+	m.refreshViewportContent(true)
+	before := m.viewport.GetContent()
+
+	sendKeys(m, "/", "e", "x", "p", "o", "r", "t")
+	sendKeys(m, "ctrl+d")
+
+	if got := m.viewport.GetContent(); got != before {
+		t.Fatal("/export should not replace the conversation viewport")
+	}
+	view := m.View().Content
+	if !strings.Contains(view, "导出成功") {
+		t.Fatal("/export should show success in the status area")
+	}
+	if !strings.Contains(view, "question should remain visible") {
+		t.Fatal("conversation should remain visible after export")
+	}
+	if m.mode != ModeInput {
+		t.Fatalf("/export should keep input mode, got %d", m.mode)
+	}
+}
