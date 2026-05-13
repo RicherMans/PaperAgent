@@ -45,6 +45,8 @@ func sendKeys(m *Model, keys ...string) {
 			msg = tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
 		case "ctrl+c":
 			msg = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+		case "tab":
+			msg = tea.KeyPressMsg{Code: tea.KeyTab}
 		case "ctrl+j":
 			msg = tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl}
 		case "up":
@@ -93,6 +95,9 @@ func TestHelpCommand(t *testing.T) {
 	}
 	if !strings.Contains(view, "/list") {
 		t.Error("help should show /list command")
+	}
+	if !strings.Contains(view, "/resume") {
+		t.Error("help should show /resume command")
 	}
 	if !strings.Contains(view, "/quit") {
 		t.Error("help should show /quit command")
@@ -230,7 +235,7 @@ func TestListModeEmpty(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	view := m.View().Content
@@ -258,7 +263,7 @@ func TestListModeWithPapers(t *testing.T) {
 	sendWindowSize(m, 120, 40)
 
 	// Open list
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	if m.mode != ModeList {
@@ -272,8 +277,8 @@ func TestListModeWithPapers(t *testing.T) {
 	if !strings.Contains(view, "Paper 3") {
 		t.Error("list should show Paper 3")
 	}
-	if !strings.Contains(view, "会话列表") {
-		t.Error("header should show 会话列表")
+	if !strings.Contains(view, "恢复会话") {
+		t.Error("header should show 恢复会话")
 	}
 }
 
@@ -291,7 +296,7 @@ func TestListModeNavigation(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	if m.listCursor != 0 {
@@ -343,7 +348,7 @@ func TestListModeSelect(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	if m.mode != ModeList {
@@ -376,7 +381,7 @@ func TestListModeEscape(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	if m.mode != ModeList {
@@ -403,7 +408,7 @@ func TestListModeDelete(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
 	sendKeys(m, "ctrl+d")
 
 	// Press d to initiate delete
@@ -423,11 +428,11 @@ func TestListModeDelete(t *testing.T) {
 	sendKeys(m, "y")
 
 	// Paper at cursor (Paper 1) should be deleted, only Paper 2 remains
-	if len(m.listItems) != 1 {
-		t.Errorf("expected 1 item remaining, got %d", len(m.listItems))
+	if len(m.resumeItems) != 1 {
+		t.Errorf("expected 1 item remaining, got %d", len(m.resumeItems))
 	}
-	if len(m.listItems) > 0 && m.listItems[0].Title != "Paper 2" {
-		t.Errorf("expected 'Paper 2', got %s", m.listItems[0].Title)
+	if len(m.resumeItems) > 0 && m.resumeItems[0].Title != "Paper 2" {
+		t.Errorf("expected 'Paper 2', got %s", m.resumeItems[0].Title)
 	}
 }
 
@@ -1142,5 +1147,169 @@ func TestCtrlCRequiresDoublePress(t *testing.T) {
 	_, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
 		t.Fatal("second consecutive Ctrl+C should return a quit command")
+	}
+}
+
+func TestUserMessageShowsFullContentAndDigestSeparately(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	longQuestion := "这是一个很长的问题，包含非常多的上下文，我希望它在上屏之后完整显示，而不是被截断或者被小模型摘要替换。"
+	p := session.NewPaper("paper content", "")
+	p.InitialSummary = "summary"
+	p.Messages = []session.Message{
+		{RoundNumber: 1, Role: "user", Content: longQuestion, Digest: "小模型摘要", TokenCount: 42},
+	}
+	m.LoadPaper(p)
+	m.refreshViewportContent(true)
+
+	view := m.View().Content
+	if !strings.Contains(view, longQuestion) {
+		t.Fatal("full user question should be rendered")
+	}
+	if !strings.Contains(view, "摘要: 小模型摘要") {
+		t.Fatal("digest should be shown separately as metadata")
+	}
+}
+
+func TestListShowsRoundJumpList(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	p := session.NewPaper("paper content", "")
+	p.InitialSummary = strings.Repeat("summary line\n", 80)
+	p.Messages = []session.Message{
+		{RoundNumber: 1, Role: "user", Content: "first detailed question", Digest: "第一轮摘要", TokenCount: 5},
+		{RoundNumber: 1, Role: "assistant", Content: strings.Repeat("long answer line\n", 80), TokenCount: 5},
+		{RoundNumber: 2, Role: "user", Content: "second detailed question", TokenCount: 5},
+		{RoundNumber: 2, Role: "assistant", Content: "answer", TokenCount: 5},
+	}
+	m.LoadPaper(p)
+	m.refreshViewportContent(true)
+
+	sendKeys(m, "/", "l", "i", "s", "t")
+	sendKeys(m, "ctrl+d")
+
+	if m.mode != ModeList || m.listKind != ListKindRounds {
+		t.Fatalf("/list should open round jump list, mode=%d kind=%d", m.mode, m.listKind)
+	}
+	view := m.View().Content
+	if !strings.Contains(view, "第一轮摘要") || !strings.Contains(view, "second detailed question") {
+		t.Fatalf("round list should show digests or question text, got: %s", view)
+	}
+
+	sendKeys(m, "enter")
+	if m.mode != ModeInput {
+		t.Fatalf("enter on round list should return to input mode")
+	}
+	if m.viewport.AtBottom() {
+		t.Fatal("jumping to first round should move away from bottom for long content")
+	}
+}
+
+func TestResumeRestoresBottomAndQuestionPlaceholder(t *testing.T) {
+	cfg := testConfig()
+	tmpDir := t.TempDir()
+	os.Setenv("HOME", tmpDir)
+	defer os.Unsetenv("HOME")
+
+	p := session.NewPaper("paper content", "")
+	p.Title = "Restored Paper"
+	p.InitialSummary = strings.Repeat("summary line\n", 100)
+	if err := session.SavePaper(p); err != nil {
+		t.Fatalf("save paper: %v", err)
+	}
+
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 30)
+	sendKeys(m, "/", "r", "e", "s", "u", "m", "e")
+	sendKeys(m, "ctrl+d")
+	sendKeys(m, "enter")
+
+	if m.manager.Paper() == nil || m.manager.Paper().Title != "Restored Paper" {
+		t.Fatal("/resume enter should restore saved paper")
+	}
+	if !strings.Contains(m.textarea.Placeholder, "输入问题") {
+		t.Fatalf("placeholder should switch to question mode, got %q", m.textarea.Placeholder)
+	}
+	if !m.viewport.AtBottom() {
+		t.Fatal("restored conversation should open at bottom")
+	}
+}
+
+func TestSlashSuggestionsAndUnknownCommand(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	sendKeys(m, "/")
+	view := m.View().Content
+	if !strings.Contains(view, "/resume") || !strings.Contains(view, "/list") {
+		t.Fatal("typing / should show command suggestions")
+	}
+
+	sendKeys(m, "n", "o", "p", "e")
+	sendKeys(m, "ctrl+d")
+	view = m.View().Content
+	if !strings.Contains(view, "未知命令") || !strings.Contains(view, "/help") {
+		t.Fatal("unknown command should show command help")
+	}
+}
+
+func TestListIncludesRoundZeroWhenItHasAssistant(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	p := session.NewPaper("paper content", "")
+	p.InitialSummary = "summary"
+	p.Messages = []session.Message{
+		{RoundNumber: 0, Role: "user", Content: "first question", Digest: "第一轮", TokenCount: 5},
+		{RoundNumber: 0, Role: "assistant", Content: "answer", TokenCount: 5},
+		{RoundNumber: 1, Role: "user", Content: "second question", Digest: "第二轮", TokenCount: 5},
+		{RoundNumber: 1, Role: "assistant", Content: "answer", TokenCount: 5},
+	}
+	m.LoadPaper(p)
+
+	items := m.buildRoundItems()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 round items, got %d: %#v", len(items), items)
+	}
+	if items[0].Display != 1 || items[0].Round != 0 || items[1].Display != 2 || items[1].Round != 1 {
+		t.Fatalf("unexpected round display mapping: %#v", items)
+	}
+}
+
+func TestListSkipsInitialPaperLoadPseudoRound(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	p := session.NewPaper("paper content", "")
+	p.InitialSummary = "summary"
+	p.Messages = []session.Message{
+		{RoundNumber: 0, Role: "user", Content: "paper excerpt pseudo message", TokenCount: 5},
+		{RoundNumber: 1, Role: "user", Content: "real question", Digest: "真实问题", TokenCount: 5},
+		{RoundNumber: 1, Role: "assistant", Content: "answer", TokenCount: 5},
+	}
+	m.LoadPaper(p)
+
+	items := m.buildRoundItems()
+	if len(items) != 1 || items[0].Round != 1 || items[0].Display != 1 {
+		t.Fatalf("should skip unpaired pseudo round and display real question as #1: %#v", items)
+	}
+}
+
+func TestTabCompletesSlashCommand(t *testing.T) {
+	cfg := testConfig()
+	m := NewModel(cfg)
+	sendWindowSize(m, 120, 40)
+
+	sendKeys(m, "/", "r", "e", "s")
+	sendKeys(m, "tab")
+	if got := m.textarea.Value(); got != "/resume " {
+		t.Fatalf("expected tab completion to /resume, got %q", got)
 	}
 }

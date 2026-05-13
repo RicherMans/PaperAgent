@@ -27,6 +27,21 @@ const (
 	ModeList
 )
 
+type ListKind int
+
+const (
+	ListKindNone ListKind = iota
+	ListKindResume
+	ListKindRounds
+)
+
+type roundListItem struct {
+	Round   int
+	Display int
+	Title   string
+	Digest  string
+}
+
 type Phase int
 
 const (
@@ -83,8 +98,10 @@ type Model struct {
 	streamChan    <-chan api.StreamChunk
 
 	// List mode
-	listItems  []session.PaperSummary
-	listCursor int
+	listKind    ListKind
+	resumeItems []session.PaperSummary
+	roundItems  []roundListItem
+	listCursor  int
 
 	// Delete confirmation
 	confirmDelete bool
@@ -122,12 +139,21 @@ func NewModel(cfg *config.Config) *Model {
 
 func (m *Model) LoadPaper(p *session.Paper) {
 	m.manager.SetPaper(p)
+	m.updateTextareaPlaceholder()
 	if p.InitialSummary != "" {
 		m.phase = PhaseChat
 		m.viewport.SetContent(m.renderMessages())
 	} else {
 		m.phase = PhaseInit
 	}
+}
+
+func (m *Model) updateTextareaPlaceholder() {
+	if m.manager.Paper() == nil {
+		m.textarea.Placeholder = "输入 arXiv 链接/ID，或粘贴论文内容... (Enter 发送)"
+		return
+	}
+	m.textarea.Placeholder = "输入问题... (Enter 发送, Shift+Enter 换行)"
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -256,4 +282,43 @@ func preprocessMarkdown(text string) string {
 	text = inlineParenMathPattern.ReplaceAllString(text, "`$1`")
 	text = inlineDollarMathPattern.ReplaceAllString(text, "`$1`")
 	return text
+}
+
+type commandInfo struct {
+	Name        string
+	Usage       string
+	Description string
+}
+
+var commands = []commandInfo{
+	{Name: "/new", Usage: "/new [arxiv/url/path]", Description: "新建会话，可从 arXiv、URL 或文件加载"},
+	{Name: "/resume", Usage: "/resume", Description: "恢复历史论文会话"},
+	{Name: "/list", Usage: "/list", Description: "列出当前论文的问答轮次并快速跳转"},
+	{Name: "/open", Usage: "/open <session-id>", Description: "按 session ID 打开历史会话"},
+	{Name: "/delete", Usage: "/delete", Description: "删除当前会话"},
+	{Name: "/edit", Usage: "/edit", Description: "编辑最近一次问题"},
+	{Name: "/del", Usage: "/del <round>", Description: "删除指定问答轮次"},
+	{Name: "/summarize", Usage: "/summarize", Description: "对当前对话生成元总结"},
+	{Name: "/export", Usage: "/export", Description: "导出到 Obsidian"},
+	{Name: "/model", Usage: "/model [name]", Description: "查看或切换模型"},
+	{Name: "/config", Usage: "/config", Description: "查看当前配置"},
+	{Name: "/help", Usage: "/help", Description: "显示帮助"},
+	{Name: "/quit", Usage: "/quit", Description: "保存并退出"},
+}
+
+func commandHelpText() string {
+	var b strings.Builder
+	b.WriteString("可用命令:\n\n")
+	for _, c := range commands {
+		b.WriteString("  ")
+		b.WriteString(c.Usage)
+		if len(c.Usage) < 18 {
+			b.WriteString(strings.Repeat(" ", 18-len(c.Usage)))
+		} else {
+			b.WriteString("  ")
+		}
+		b.WriteString(c.Description)
+		b.WriteString("\n")
+	}
+	return b.String()
 }

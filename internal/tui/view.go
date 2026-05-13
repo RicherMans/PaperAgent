@@ -101,7 +101,11 @@ func (m *Model) renderViewportWithScrollbar() string {
 func (m *Model) renderHeader() string {
 	title := "PaperPaper"
 	if m.mode == ModeList {
-		title = "会话列表"
+		if m.listKind == ListKindRounds {
+			title = "问答列表"
+		} else {
+			title = "恢复会话"
+		}
 	} else if p := m.manager.Paper(); p != nil && p.Title != "" {
 		title = p.Title
 	}
@@ -112,7 +116,11 @@ func (m *Model) renderHeader() string {
 		phaseStr = "💬 Chat"
 	}
 	if m.mode == ModeList {
-		phaseStr = "📋 List"
+		if m.listKind == ListKindRounds {
+			phaseStr = "🔎 Rounds"
+		} else {
+			phaseStr = "📋 Resume"
+		}
 	}
 
 	left := titleStyle.Render(title)
@@ -146,13 +154,18 @@ func (m *Model) renderInput() string {
 	case ModeNormal:
 		modeHint = dimStyle.Render(" [NORMAL] i:编辑 j/k:滚动 q:退出")
 	case ModeInput:
-		modeHint = dimStyle.Render(" [INPUT] Enter:发送 Shift+Enter:换行 Esc:退出 /list:会话列表")
+		modeHint = dimStyle.Render(" [INPUT] Enter:发送 Shift+Enter:换行 Esc:退出 /:命令提示")
+	}
+
+	content := input + modeHint
+	if suggestions := m.renderCommandSuggestions(); suggestions != "" {
+		content += "\n" + suggestions
 	}
 
 	return lipgloss.NewStyle().
 		BorderTop(true).
 		BorderForeground(lipgloss.Color("240")).
-		Render(input + modeHint)
+		Render(content)
 }
 
 func (m *Model) renderStatusBar() string {
@@ -188,7 +201,14 @@ func (m *Model) renderStatusBar() string {
 }
 
 func (m *Model) renderList() string {
-	if len(m.listItems) == 0 {
+	if m.listKind == ListKindRounds {
+		return m.renderRoundList()
+	}
+	return m.renderResumeList()
+}
+
+func (m *Model) renderResumeList() string {
+	if len(m.resumeItems) == 0 {
 		return bannerStyle.Render("没有历史论文。")
 	}
 
@@ -199,7 +219,7 @@ func (m *Model) renderList() string {
 	selectedStyle := lipgloss.NewStyle().Padding(0, 2).Foreground(lipgloss.Color("39")).Bold(true)
 	confirmStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 
-	for i, item := range m.listItems {
+	for i, item := range m.resumeItems {
 		title := item.Title
 		if title == "" {
 			title = "Paper " + item.ShortRef()
@@ -219,10 +239,55 @@ func (m *Model) renderList() string {
 	if m.confirmDelete {
 		b.WriteString(confirmStyle.Render("  确认删除？ y:确认 n:取消"))
 	} else {
-		b.WriteString(dimStyle.Render("  j/k:移动 Enter:打开 d:删除 Esc:返回"))
+		b.WriteString(dimStyle.Render("  j/k:移动 Enter:恢复 d:删除 Esc:返回"))
 	}
 
 	return b.String()
+}
+
+func (m *Model) renderRoundList() string {
+	if len(m.roundItems) == 0 {
+		return bannerStyle.Render("当前论文还没有可跳转的问答轮次。")
+	}
+
+	var b strings.Builder
+	b.WriteString("\n")
+	itemStyle := lipgloss.NewStyle().Padding(0, 2)
+	selectedStyle := lipgloss.NewStyle().Padding(0, 2).Foreground(lipgloss.Color("39")).Bold(true)
+
+	for i, item := range m.roundItems {
+		line := fmt.Sprintf("  #%d  %s", item.Display, item.Title)
+		if i == m.listCursor {
+			b.WriteString(selectedStyle.Render("▸ " + strings.TrimPrefix(line, "  ")))
+		} else {
+			b.WriteString(itemStyle.Render(line))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render("  j/k:移动 Enter:跳转到该轮 Esc:返回"))
+	return b.String()
+}
+
+func (m *Model) renderCommandSuggestions() string {
+	value := strings.TrimSpace(m.textarea.Value())
+	if m.mode != ModeInput || !strings.HasPrefix(value, "/") {
+		return ""
+	}
+	var lines []string
+	for _, c := range commands {
+		if strings.HasPrefix(c.Name, value) || value == "/" {
+			lines = append(lines, fmt.Sprintf("  %-20s %s", c.Usage, c.Description))
+		}
+	}
+	if len(lines) == 0 {
+		lines = append(lines, "  未知命令，输入 /help 查看全部命令")
+	}
+	if len(lines) > 8 {
+		lines = lines[:8]
+		lines = append(lines, "  ...")
+	}
+	return dimStyle.Render(strings.Join(lines, "\n"))
 }
 
 func (m *Model) renderMessages() string {
@@ -271,16 +336,12 @@ func (m *Model) renderMessage(msg session.Message) string {
 		header := userStyle.Render("📝 You:")
 		b.WriteString(header)
 		b.WriteString(" ")
-		if msg.Digest != "" {
-			b.WriteString(msg.Digest)
-		} else {
-			content := msg.Content
-			if len(content) > 100 {
-				content = content[:100] + "..."
-			}
-			b.WriteString(content)
-		}
+		b.WriteString(msg.Content)
 		b.WriteString("\n")
+		if msg.Digest != "" {
+			b.WriteString(dimStyle.Render("   摘要: " + msg.Digest))
+			b.WriteString("\n")
+		}
 		b.WriteString(dimStyle.Render(fmt.Sprintf("   [Tokens: ~%d]", msg.TokenCount)))
 	} else {
 		header := aiStyle.Render("🤖 AI:")

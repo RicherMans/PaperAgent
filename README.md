@@ -76,15 +76,17 @@ paperpaper
 | `j` / `k` | 上下滚动 |
 | `Ctrl+D` | 发送 / 半页下滚 |
 | `Alt+Enter` | 发送 |
-| `q` | 退出 |
+| `q` | 浏览模式退出 |
+| `Ctrl+C` x2 | 连按两次退出 |
 
 ## 命令
 
 | 命令 | 功能 |
 |---|---|
-| `/new [url/path]` | 新建会话 |
-| `/list` | 会话列表（j/k 选择，Enter 打开） |
-| `/open <id>` | 加载历史会话 |
+| `/new [arxiv/url/path]` | 新建会话 |
+| `/resume` | 恢复历史会话（j/k 选择，Enter 打开，d 删除） |
+| `/list` | 当前论文问答轮次列表（Enter 快速跳转） |
+| `/open <session-id>` | 加载历史会话 |
 | `/delete` | 删除当前会话 |
 | `/edit` | 编辑最近问题并重新生成 |
 | `/del <round>` | 删除指定轮次 |

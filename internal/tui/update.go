@@ -92,12 +92,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.quitArmed = false
 
 	// Handle confirm delete state (only for non-list modes)
-	if m.confirmDelete && m.mode != ModeList {
+	if m.confirmDelete && (m.mode != ModeList || m.listKind != ListKindResume) {
 		switch msg.String() {
 		case "y":
 			if p := m.manager.Paper(); p != nil {
 				session.DeletePaperByRef(p.Ref())
 				m.manager.SetPaper(nil)
+				m.updateTextareaPlaceholder()
 				m.phase = PhaseInit
 				m.streamContent = ""
 				m.viewport.SetContent(bannerStyle.Render("论文已删除。\n\n请输入 arXiv 链接/ID 开始新的会话。"))
@@ -168,6 +169,11 @@ func (m *Model) handleInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
 		return m, cmd
+
+	case "tab":
+		if m.completeCommand() {
+			return m, nil
+		}
 	}
 
 	// Update textarea
@@ -183,7 +189,7 @@ func (m *Model) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.textarea.Focus()
 		return m, textarea.Blink
 	case "j", "down":
-		if m.listCursor < len(m.listItems)-1 {
+		if m.listCursor < m.currentListLen()-1 {
 			m.listCursor++
 		}
 	case "k", "up":
@@ -191,28 +197,33 @@ func (m *Model) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.listCursor--
 		}
 	case "enter":
-		if len(m.listItems) > 0 {
-			return m.openPaper(m.listItems[m.listCursor].Ref())
+		switch m.listKind {
+		case ListKindResume:
+			if len(m.resumeItems) > 0 {
+				return m.openPaper(m.resumeItems[m.listCursor].Ref())
+			}
+		case ListKindRounds:
+			if len(m.roundItems) > 0 {
+				return m.jumpToRound(m.roundItems[m.listCursor].Round)
+			}
 		}
 	case "d":
-		if len(m.listItems) > 0 {
+		if m.listKind == ListKindResume && len(m.resumeItems) > 0 {
 			m.confirmDelete = true
 		}
 	case "y":
-		if m.confirmDelete && len(m.listItems) > 0 {
-			ref := m.listItems[m.listCursor].Ref()
+		if m.confirmDelete && m.listKind == ListKindResume && len(m.resumeItems) > 0 {
+			ref := m.resumeItems[m.listCursor].Ref()
 			if err := session.DeletePaperByRef(ref); err != nil {
-				// silently fail
 				_ = err
 			}
 			m.confirmDelete = false
-			// Refresh list
 			items, _ := session.ListPapers()
-			m.listItems = items
-			if m.listCursor >= len(m.listItems) && m.listCursor > 0 {
+			m.resumeItems = items
+			if m.listCursor >= len(m.resumeItems) && m.listCursor > 0 {
 				m.listCursor--
 			}
-			if len(m.listItems) == 0 {
+			if len(m.resumeItems) == 0 {
 				m.mode = ModeInput
 				m.textarea.Focus()
 				return m, textarea.Blink
@@ -223,6 +234,17 @@ func (m *Model) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) currentListLen() int {
+	switch m.listKind {
+	case ListKindResume:
+		return len(m.resumeItems)
+	case ListKindRounds:
+		return len(m.roundItems)
+	default:
+		return 0
+	}
 }
 
 func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
@@ -259,6 +281,7 @@ func (m *Model) handleSubmit() (tea.Model, tea.Cmd) {
 func (m *Model) loadPaperFromText(content string) {
 	p := session.NewPaper(content, "")
 	m.manager.SetPaper(p)
+	m.updateTextareaPlaceholder()
 
 	// Add initial user message
 	displayContent := content
@@ -403,6 +426,7 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 
 	case "/new":
 		m.manager.SetPaper(nil)
+		m.updateTextareaPlaceholder()
 		m.phase = PhaseInit
 		m.streamContent = ""
 		m.textarea.Reset()
@@ -412,7 +436,7 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 		m.viewport.SetContent(bannerStyle.Render("欢迎使用 PaperPaper!\n\n请输入 arXiv 链接或 ID，然后按 Enter 开始抓取并总结。\n\n也可以粘贴论文全文，Shift+Enter 换行；或使用 /new <arxiv/url/path> 从 arXiv、URL 或文件加载。"))
 		return m, nil
 
-	case "/list":
+	case "/resume":
 		items, err := session.ListPapers()
 		if err != nil {
 			m.err = err
@@ -422,11 +446,16 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(bannerStyle.Render("没有历史论文。\n\n请输入 arXiv 链接/ID 开始新的会话。"))
 			return m, nil
 		}
-		m.listItems = items
+		m.resumeItems = items
+		m.roundItems = nil
+		m.listKind = ListKindResume
 		m.listCursor = 0
 		m.confirmDelete = false
 		m.mode = ModeList
 		return m, nil
+
+	case "/list":
+		return m.showRoundList()
 
 	case "/open":
 		if len(parts) < 2 {
@@ -489,32 +518,19 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "/help":
-		m.viewport.SetContent(bannerStyle.Render(
-			"可用命令:\n\n" +
-				"  /new [arxiv/url/path]  新建会话（可从 arXiv、URL 或文件加载）\n" +
-				"  /list            会话列表\n" +
-				"  /open <session-id> 加载历史会话（可用 /list 中的短 ID）\n" +
-				"  /delete          删除当前会话\n" +
-				"  /edit            编辑最近问题\n" +
-				"  /del <round>     删除指定轮次\n" +
-				"  /summarize       对话元总结\n" +
-				"  /export          导出到 Obsidian\n" +
-				"  /model [name]    模型切换\n" +
-				"  /config          配置管理\n" +
-				"  /help            显示帮助\n" +
-				"  /quit            退出\n\n" +
-				"快捷键:\n\n" +
-				"  i     进入输入模式\n" +
-				"  Esc   返回浏览模式\n" +
-				"  j/k   上下滚动\n" +
-				"  q     退出\n\n" +
-				"输入模式:\n\n" +
-				"  Enter       发送消息\n" +
-				"  Shift+Enter 插入换行"))
+		m.viewport.SetContent(bannerStyle.Render(commandHelpText() +
+			"\n快捷键:\n\n" +
+			"  i     进入输入模式\n" +
+			"  Esc   返回浏览模式\n" +
+			"  j/k   上下滚动\n" +
+			"  q     退出\n\n" +
+			"输入模式:\n\n" +
+			"  Enter       发送消息\n" +
+			"  Shift+Enter 插入换行"))
 		return m, nil
 	}
 
-	m.textarea.Reset()
+	m.viewport.SetContent(bannerStyle.Render(fmt.Sprintf("未知命令: %s\n\n%s", cmd, commandHelpText())))
 	return m, nil
 }
 
@@ -601,6 +617,7 @@ func (m *Model) openPaper(ref string) (tea.Model, tea.Cmd) {
 	}
 
 	m.LoadPaper(p)
+	m.viewport.GotoBottom()
 	m.mode = ModeInput
 	m.textarea.Focus()
 	m.textarea.Reset()
@@ -635,6 +652,7 @@ func (m *Model) loadFromInput(input string) (tea.Model, tea.Cmd) {
 
 	p := session.NewPaper(content, sourceURL)
 	m.manager.SetPaper(p)
+	m.updateTextareaPlaceholder()
 
 	displayContent := content
 	if len(displayContent) > 200 {
@@ -694,4 +712,152 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (m *Model) showRoundList() (tea.Model, tea.Cmd) {
+	items := m.buildRoundItems()
+	if len(items) == 0 {
+		m.viewport.SetContent(bannerStyle.Render("当前论文还没有可跳转的问答轮次。\n\n提问后会在这里显示每轮问题摘要。"))
+		return m, nil
+	}
+	m.roundItems = items
+	m.resumeItems = nil
+	m.listKind = ListKindRounds
+	m.listCursor = 0
+	m.confirmDelete = false
+	m.mode = ModeList
+	return m, nil
+}
+
+func (m *Model) buildRoundItems() []roundListItem {
+	p := m.manager.Paper()
+	if p == nil {
+		return nil
+	}
+
+	assistantRounds := map[int]bool{}
+	for _, msg := range p.Messages {
+		if msg.Role == "assistant" {
+			assistantRounds[msg.RoundNumber] = true
+		}
+	}
+
+	seen := map[int]bool{}
+	var items []roundListItem
+	for _, msg := range p.Messages {
+		if msg.Role != "user" || seen[msg.RoundNumber] {
+			continue
+		}
+		// Initial paper-load pseudo-message has no paired assistant message. Do not
+		// show it as a Q&A round, but do include real first questions at round 0.
+		if !assistantRounds[msg.RoundNumber] {
+			continue
+		}
+		seen[msg.RoundNumber] = true
+		title := msg.Digest
+		if title == "" {
+			title = firstLine(msg.Content)
+			if len([]rune(title)) > 80 {
+				r := []rune(title)
+				title = string(r[:80]) + "..."
+			}
+		}
+		items = append(items, roundListItem{Round: msg.RoundNumber, Display: len(items) + 1, Title: title, Digest: msg.Digest})
+	}
+	return items
+}
+
+func (m *Model) completeCommand() bool {
+	value := strings.TrimSpace(m.textarea.Value())
+	if !strings.HasPrefix(value, "/") || strings.Contains(value, " ") {
+		return false
+	}
+	var matches []commandInfo
+	for _, c := range commands {
+		if strings.HasPrefix(c.Name, value) {
+			matches = append(matches, c)
+		}
+	}
+	if len(matches) == 0 {
+		return false
+	}
+	if len(matches) == 1 {
+		m.textarea.SetValue(matches[0].Name + " ")
+		return true
+	}
+	prefix := commonCommandPrefix(matches)
+	if prefix != value {
+		m.textarea.SetValue(prefix)
+	}
+	return true
+}
+
+func commonCommandPrefix(matches []commandInfo) string {
+	if len(matches) == 0 {
+		return ""
+	}
+	prefix := matches[0].Name
+	for _, c := range matches[1:] {
+		for !strings.HasPrefix(c.Name, prefix) && prefix != "" {
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	return prefix
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		return strings.TrimSpace(s[:idx])
+	}
+	return s
+}
+
+func (m *Model) jumpToRound(round int) (tea.Model, tea.Cmd) {
+	m.mode = ModeInput
+	m.textarea.Focus()
+	m.refreshViewportContent(false)
+	m.viewport.SetYOffset(m.yOffsetForRound(round))
+	return m, textarea.Blink
+}
+
+func (m *Model) yOffsetForRound(round int) int {
+	content := m.renderMessagesBeforeRound(round)
+	if content == "" {
+		return 0
+	}
+	lines := strings.Count(content, "\n")
+	if lines > 0 {
+		lines--
+	}
+	if lines < 0 {
+		lines = 0
+	}
+	return lines
+}
+
+func (m *Model) renderMessagesBeforeRound(round int) string {
+	p := m.manager.Paper()
+	if p == nil {
+		return ""
+	}
+	var b strings.Builder
+	if p.InitialSummary != "" {
+		b.WriteString(m.renderMarkdown(p.InitialSummary))
+		b.WriteString("\n")
+		sepWidth := m.width - 4
+		if sepWidth < 1 {
+			sepWidth = 1
+		}
+		b.WriteString(separatorStyle.Render(strings.Repeat("─", sepWidth)))
+		b.WriteString("\n")
+	}
+	for _, msg := range p.Messages {
+		if msg.RoundNumber >= round {
+			break
+		}
+		b.WriteString(m.renderMessage(msg))
+		b.WriteString("\n")
+	}
+	return b.String()
 }
