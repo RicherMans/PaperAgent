@@ -30,6 +30,12 @@ func (m *Model) View() tea.View {
 	}
 	b.WriteString("\n")
 
+	// Separator line
+	if m.mode != ModeList {
+		b.WriteString(m.renderSeparator())
+		b.WriteString("\n")
+	}
+
 	// Input area (hidden in list mode)
 	if m.mode != ModeList {
 		b.WriteString(m.renderInput())
@@ -118,6 +124,11 @@ func (m *Model) renderViewportWithScrollbar() string {
 	return strings.Join(lines, "\n")
 }
 
+func (m *Model) renderSeparator() string {
+	line := strings.Repeat("─", m.width)
+	return separatorStyle.Render(line)
+}
+
 func (m *Model) renderHeader() string {
 	title := "PaperPaper"
 	if m.mode == ModeList {
@@ -182,10 +193,7 @@ func (m *Model) renderInput() string {
 		content += "\n" + suggestions
 	}
 
-	return lipgloss.NewStyle().
-		BorderTop(true).
-		BorderForeground(lipgloss.Color("240")).
-		Render(content)
+	return content
 }
 
 func (m *Model) renderStatusBar() string {
