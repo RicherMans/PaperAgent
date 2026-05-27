@@ -245,8 +245,9 @@ func (m *Model) renderMarkdown(text string) string {
 		return cached
 	}
 
-	// Create renderer once (use a huge WordWrap to disable glamour's own
-	// wrapping — we do our own CJK-aware wrapping below).
+	// Create renderer once (use WordWrap=300 — wide enough to avoid
+	// unnecessary wrapping but not so wide that glamour's padding becomes
+	// expensive. We re-wrap at the target width below).
 	if m.glamourRenderer == nil {
 		style := styles.DarkStyleConfig
 		style.H2.Prefix = ""
@@ -260,7 +261,7 @@ func (m *Model) renderMarkdown(text string) string {
 		style.Enumeration.BlockPrefix = ") "
 
 		renderer, err := glamour.NewTermRenderer(
-			glamour.WithWordWrap(10000),
+			glamour.WithWordWrap(300),
 			glamour.WithStyles(style),
 		)
 		if err != nil {
