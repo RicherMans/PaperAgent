@@ -9,6 +9,7 @@ import (
 	"charm.land/glamour/v2"
 	"charm.land/glamour/v2/styles"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/paperpaper/paperpaper/internal/api"
 	"github.com/paperpaper/paperpaper/internal/config"
@@ -114,7 +115,6 @@ type Model struct {
 
 	// Markdown renderer cache
 	glamourRenderer *glamour.TermRenderer
-	glamourWidth    int
 }
 
 func NewModel(cfg *config.Config) *Model {
@@ -228,8 +228,9 @@ func (m *Model) renderMarkdown(text string) string {
 		targetWidth = 120
 	}
 
-	// Recreate renderer if width changed
-	if m.glamourRenderer == nil || m.glamourWidth != targetWidth {
+	// Create renderer once (use a huge WordWrap to disable glamour's own
+	// wrapping — we do our own CJK-aware wrapping below).
+	if m.glamourRenderer == nil {
 		style := styles.DarkStyleConfig
 		style.H2.Prefix = ""
 		style.H3.Prefix = ""
@@ -242,22 +243,20 @@ func (m *Model) renderMarkdown(text string) string {
 		style.Enumeration.BlockPrefix = ") "
 
 		renderer, err := glamour.NewTermRenderer(
-			glamour.WithWordWrap(targetWidth),
+			glamour.WithWordWrap(10000),
 			glamour.WithStyles(style),
 		)
 		if err != nil {
-			// Fallback to simple rendering
 			return text
 		}
 		m.glamourRenderer = renderer
-		m.glamourWidth = targetWidth
 	}
 
 	rendered, err := m.glamourRenderer.Render(preprocessMarkdown(text))
 	if err != nil {
 		return text
 	}
-	return rendered
+	return rebalanceWrap(rendered, targetWidth)
 }
 
 var (
@@ -266,6 +265,80 @@ var (
 	inlineParenMathPattern  = regexp.MustCompile(`\\\((.*?)\\\)`)
 	inlineDollarMathPattern = regexp.MustCompile(`\$([^$\n]+?)\$`)
 )
+
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// rebalanceWrap rewraps glamour's output to produce balanced line lengths for
+// mixed CJK/English text. lipgloss.Wrap prefers breaking at spaces, which
+// creates jagged edges when CJK text fills a line followed by a short English
+// phrase. This wrapper breaks strictly at character boundaries, filling each
+// line to the target width.
+func rebalanceWrap(text string, targetWidth int) string {
+	// glamour pads every line to its internal wrap width (10000). Measure
+	// display width (ignoring ANSI codes) and trim padding.
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		// Trim trailing padding spaces that glamour adds
+		plain := ansiPattern.ReplaceAllString(line, "")
+		plain = strings.TrimRight(plain, " ")
+
+		w := ansi.StringWidth(plain)
+		if w <= targetWidth {
+			// Short line: keep ANSI styling, just trim trailing padding
+			out = append(out, strings.TrimRight(line, " "))
+			continue
+		}
+
+		// Extract leading whitespace (glamour's document margin)
+		leading := ""
+		for _, r := range plain {
+			if r == ' ' || r == '\t' {
+				leading += string(r)
+			} else {
+				break
+			}
+		}
+		content := plain[len(leading):]
+		contentWidth := targetWidth - ansi.StringWidth(leading)
+		if contentWidth < 1 {
+			contentWidth = 1
+		}
+
+		wrapped := wrapLineBalanced(content, contentWidth)
+		for _, wl := range wrapped {
+			out = append(out, leading+wl)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// wrapLineBalanced wraps text at exact character boundaries, producing
+// evenly-filled lines regardless of CJK/ASCII character mix.
+func wrapLineBalanced(text string, width int) []string {
+	if width < 1 {
+		return []string{text}
+	}
+	var lines []string
+	var cur strings.Builder
+	curWidth := 0
+
+	for _, r := range text {
+		rw := ansi.StringWidth(string(r))
+		if curWidth+rw > width && curWidth > 0 {
+			lines = append(lines, cur.String())
+			cur.Reset()
+			curWidth = 0
+		}
+		cur.WriteRune(r)
+		curWidth += rw
+	}
+	if cur.Len() > 0 {
+		lines = append(lines, cur.String())
+	}
+	return lines
+}
 
 func preprocessMarkdown(text string) string {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
