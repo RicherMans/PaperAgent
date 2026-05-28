@@ -1,0 +1,86 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
+  font-size: 16px; /* rem 基础 */
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: var(--paper-font-size, 17px);
+  line-height: 1.6;
+}
+
+/* Highlight.js theme overrides */
+pre code.hljs {
+  padding: 1em;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* KaTeX font - match surrounding text size */
+.katex {
+  font-size: 1.1em;
+}
+
+/* Markdown content styles - use CSS variable for base size */
+.markdown-body {
+  font-size: var(--paper-font-size, 17px);
+  line-height: 1.7;
+}
+
+.markdown-body h1 { @apply text-2xl font-bold mt-6 mb-3; }
+.markdown-body h2 { @apply text-xl font-bold mt-5 mb-2; }
+.markdown-body h3 { @apply text-lg font-semibold mt-4 mb-2; }
+.markdown-body h4 { @apply text-base font-semibold mt-3 mb-1; }
+.markdown-body p { @apply my-2.5 leading-relaxed; }
+.markdown-body ul,
+.markdown-body ol { @apply my-2.5 pl-6; }
+.markdown-body ul { @apply list-disc; }
+.markdown-body ol { @apply list-decimal; }
+.markdown-body li { @apply my-1; }
+.markdown-body blockquote {
+  @apply border-l-4 border-blue-400 pl-4 my-3 italic text-gray-600 dark:text-gray-400;
+}
+.markdown-body a {
+  @apply text-blue-500 dark:text-blue-400 underline hover:no-underline;
+}
+.markdown-body table {
+  @apply w-full my-3 border-collapse;
+}
+.markdown-body th,
+.markdown-body td {
+  @apply border border-gray-300 dark:border-gray-700 px-3 py-2 text-left text-sm;
+}
+.markdown-body th {
+  @apply bg-gray-100 dark:bg-gray-800 font-semibold;
+}
+.markdown-body hr {
+  @apply my-6 border-gray-300 dark:border-gray-700;
+}
+.markdown-body code:not(pre code) {
+  @apply bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-1.5 py-0.5 rounded text-sm;
+}
+
+/* Scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-600;
+}
+
+/* Toast positioning */
+[data-sonner-toaster] {
+  @apply !top-4 !right-4;
+}

@@ -8,3 +8,12 @@ paperpaper
 *.swp
 *.swo
 .paperpaper/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+internal/server/frontend-dist/
+
+# Misc dev artifacts
+paperpaper-web
+skills-lock.json

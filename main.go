@@ -4,14 +4,19 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/paperpaper/paperpaper/internal/config"
+	"github.com/paperpaper/paperpaper/internal/server"
 	"github.com/paperpaper/paperpaper/internal/session"
 	"github.com/paperpaper/paperpaper/internal/tui"
 	"github.com/paperpaper/paperpaper/internal/urlparse"
 )
+
+var serverMode = flag.Bool("server", false, "Run as HTTP server instead of TUI")
 
 func main() {
 	flag.Parse()
@@ -22,67 +27,73 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Check API key
 	if cfg.API.APIKey == "" || cfg.API.APIKey == "${OPENAI_API_KEY}" {
 		fmt.Fprintln(os.Stderr, "Error: No API key configured.")
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Please configure your API key in one of the following ways:")
+		fmt.Fprintln(os.Stderr, "Please configure your API key:")
+		fmt.Fprintln(os.Stderr, "  export OPENAI_API_KEY=your-key-here")
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "  1. Set environment variable:")
-		fmt.Fprintln(os.Stderr, "     export OPENAI_API_KEY=your-key-here")
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "  2. Create config file:")
-		fmt.Fprintln(os.Stderr, "     mkdir -p ~/.paperpaper")
-		fmt.Fprintln(os.Stderr, "     cat > ~/.paperpaper/config.yaml << 'EOF'")
-		fmt.Fprintln(os.Stderr, "     api:")
-		fmt.Fprintln(os.Stderr, "       base_url: \"https://api.openai.com/v1\"")
-		fmt.Fprintln(os.Stderr, "       api_key: \"your-key-here\"")
-		fmt.Fprintln(os.Stderr, "       default_model: \"gpt-4o\"")
-		fmt.Fprintln(os.Stderr, "       light_model: \"gpt-4o-mini\"")
-		fmt.Fprintln(os.Stderr, "     EOF")
+		fmt.Fprintln(os.Stderr, "Or create ~/.paperpaper/config.yaml with api.api_key set.")
 		os.Exit(1)
 	}
 
-	// Ensure directories exist
 	os.MkdirAll(config.PapersDir(), 0755)
 	os.MkdirAll(config.PromptsDir(), 0755)
 
+	if *serverMode {
+		runServer(cfg)
+		return
+	}
+
+	runTUI(cfg)
+}
+
+func runServer(cfg *config.Config) {
+	srv := server.New(cfg)
+
+	// Handle graceful shutdown
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Println("\nShutting down...")
+		os.Exit(0)
+	}()
+
+	addr := ":8686"
+	if v := os.Getenv("PAPER_ADDR"); v != "" {
+		addr = v
+	}
+
+	fmt.Printf("PaperPaper server starting on http://localhost%s\n", addr)
+	if err := srv.Start(addr); err != nil {
+		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runTUI(cfg *config.Config) {
 	m := tui.NewModel(cfg)
 
-	// If an argument is provided, load it (file path or URL)
 	if flag.NArg() > 0 {
 		input := flag.Arg(0)
 		var content string
-		var sourceURL string
 
 		if arxivURL, _, ok := urlparse.NormalizeArxivInput(input); ok {
-			sourceURL = arxivURL
-			content, err = urlparse.FetchURL(arxivURL)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error fetching arXiv paper: %v\n", err)
-				os.Exit(1)
-			}
+			content, _ = urlparse.FetchURL(arxivURL)
 		} else if urlparse.IsURL(input) {
-			sourceURL = input
-			content, err = urlparse.FetchURL(input)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error fetching URL: %v\n", err)
-				os.Exit(1)
-			}
+			content, _ = urlparse.FetchURL(input)
 		} else {
-			content, err = urlparse.LoadFile(input)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-				os.Exit(1)
-			}
+			content, _ = urlparse.LoadFile(input)
 		}
 
-		p := session.NewPaper(content, sourceURL)
-		m.LoadPaper(p)
+		if content != "" {
+			p := session.NewPaper(content, input)
+			m.LoadPaper(p)
+		}
 	}
 
-	p := tea.NewProgram(m)
-	if _, err := p.Run(); err != nil {
+	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
