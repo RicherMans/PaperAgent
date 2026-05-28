@@ -3,6 +3,7 @@ package tui
 import (
 	"regexp"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbletea/v2"
@@ -79,6 +80,8 @@ type digestDoneMsg struct {
 	roundID int
 }
 
+type thinkingTickMsg struct{}
+
 type Model struct {
 	cfg       *config.Config
 	apiClient *api.Client
@@ -94,6 +97,7 @@ type Model struct {
 	height int
 
 	streaming     bool
+	thinkingTick  int
 	streamContent string
 	streamBuf     string
 	streamChan    <-chan api.StreamChunk
@@ -172,6 +176,9 @@ func (m *Model) Init() tea.Cmd {
 		cmds = append(cmds, m.startStream([]api.ChatMessage{
 			{Role: "system", Content: prompt.GetHeavy()},
 			{Role: "user", Content: p.Content},
+		}))
+		cmds = append(cmds, tea.Tick(0, func(t time.Time) tea.Msg {
+			return thinkingTickMsg{}
 		}))
 	}
 

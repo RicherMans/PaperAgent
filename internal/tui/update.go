@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbletea/v2"
@@ -58,6 +59,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case streamMsg:
 		return m.handleStreamMsg(msg)
+	case thinkingTickMsg:
+		m.thinkingTick++
+		if m.streaming {
+			return m, tea.Tick(120*time.Millisecond, func(t time.Time) tea.Msg {
+				return thinkingTickMsg{}
+			})
+		}
+		return m, nil
 
 	case summarizeDoneMsg:
 		m.manager.SetInitialSummary(msg.summary)
@@ -346,8 +355,13 @@ func (m *Model) askQuestion(question string) (tea.Model, tea.Cmd) {
 	m.refreshViewportContent(true)
 	m.textarea.Reset()
 
-	// Start streaming
-	return m, m.startStream(messages)
+	// Start streaming + thinking animation
+	return m, tea.Batch(
+		m.startStream(messages),
+		tea.Tick(0, func(t time.Time) tea.Msg {
+			return thinkingTickMsg{}
+		}),
+	)
 }
 
 func (m *Model) handleStreamMsg(msg streamMsg) (tea.Model, tea.Cmd) {
@@ -605,7 +619,12 @@ func (m *Model) handleSummarize() (tea.Model, tea.Cmd) {
 	}
 
 	m.refreshViewportContent(true)
-	return m, m.startStream(messages)
+	return m, tea.Batch(
+		m.startStream(messages),
+		tea.Tick(0, func(t time.Time) tea.Msg {
+			return thinkingTickMsg{}
+		}),
+	)
 }
 
 func (m *Model) handleExport() (tea.Model, tea.Cmd) {
@@ -690,10 +709,15 @@ func (m *Model) loadFromInput(input string) (tea.Model, tea.Cmd) {
 
 	m.refreshViewportContent(true)
 
-	return m, m.startStream([]api.ChatMessage{
-		{Role: "system", Content: prompt.GetHeavy()},
-		{Role: "user", Content: content},
-	})
+	return m, tea.Batch(
+		m.startStream([]api.ChatMessage{
+			{Role: "system", Content: prompt.GetHeavy()},
+			{Role: "user", Content: content},
+		}),
+		tea.Tick(0, func(t time.Time) tea.Msg {
+			return thinkingTickMsg{}
+		}),
+	)
 }
 
 func (m *Model) refreshViewportContent(forceBottom bool) {
@@ -714,8 +738,12 @@ func (m *Model) resizeComponents() {
 	headerHeight := 1
 	footerHeight := 2
 	inputHeight := 4
+	thinkingBarHeight := 0
+	if m.streaming {
+		thinkingBarHeight = 2
+	}
 
-	viewportHeight := m.height - headerHeight - footerHeight - inputHeight
+	viewportHeight := m.height - headerHeight - footerHeight - inputHeight - thinkingBarHeight
 	if viewportHeight < 5 {
 		viewportHeight = 5
 	}

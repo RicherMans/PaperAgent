@@ -34,6 +34,11 @@ func (m *Model) View() tea.View {
 	if m.mode != ModeList {
 		b.WriteString(m.renderSeparator())
 		b.WriteString("\n")
+		// Thinking bar animation
+		if thinking := m.renderThinkingBar(); thinking != "" {
+			b.WriteString(thinking)
+			b.WriteString("\n")
+		}
 	}
 
 	// Input area (hidden in list mode)
@@ -122,6 +127,63 @@ func (m *Model) renderViewportWithScrollbar() string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func (m *Model) renderThinkingBar() string {
+	if !m.streaming {
+		return ""
+	}
+
+	spinners := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinner := spinners[m.thinkingTick%len(spinners)]
+
+	label := "AI 正在总结..."
+	if m.phase == PhaseChat {
+		label = "AI 正在思考..."
+	}
+
+	barWidth := m.width - 4
+	if barWidth < 10 {
+		barWidth = 10
+	}
+	// Create a pulsing progress block that moves left-to-right
+	cycle := barWidth + 6
+	pos := m.thinkingTick % cycle
+	// The "lit" segment is 4 chars wide
+	start := pos - 4
+	if start < 0 {
+		start = 0
+	}
+	end := pos
+	if end > barWidth {
+		end = barWidth
+	}
+
+	var bar strings.Builder
+	for i := 0; i < barWidth; i++ {
+		if i >= start && i < end {
+			bar.WriteString("█")
+		} else {
+			bar.WriteString("░")
+		}
+	}
+	barStr := bar.String()
+
+	text := fmt.Sprintf(" %s %s", spinner, label)
+
+	thinkingStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39"))
+
+	barLit := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("39"))
+
+	barDim := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("237"))
+
+	return thinkingStyle.Render(text) + "\n" +
+		barDim.Render(barStr[:start]) +
+		barLit.Render(barStr[start:end]) +
+		barDim.Render(barStr[end:])
 }
 
 func (m *Model) renderSeparator() string {
