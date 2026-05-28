@@ -1,5 +1,5 @@
 import { Plus, Trash2, MoreHorizontal, Download } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { usePaperList, useDeletePaper, useExportPaper } from '../hooks/usePapers'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
@@ -10,18 +10,24 @@ export function PaperList() {
   const exportPaper = useExportPaper()
   const { currentPaperId, setCurrentPaperId, setNewPaperOpen } = useAppStore()
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
-  // Close menu on outside click
+  // Close menu on outside click — tracks by data attribute, not ref
   useEffect(() => {
+    if (!menuOpen) return
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const menuEl = document.querySelector(`[data-menu-id="${menuOpen}"]`)
+      if (menuEl && !menuEl.contains(target)) {
         setMenuOpen(null)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    // Delay adding listener so the click that opened menu doesn't close it
+    const id = requestAnimationFrame(() => document.addEventListener('mousedown', handler))
+    return () => {
+      cancelAnimationFrame(id)
+      document.removeEventListener('mousedown', handler)
+    }
+  }, [menuOpen])
 
   const handleDelete = async (id: string) => {
     try {
@@ -67,6 +73,7 @@ export function PaperList() {
           onClick={() => setNewPaperOpen(true)}
           className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
           title="新建论文"
+          aria-label="新建论文"
         >
           <Plus size={16} />
         </button>
@@ -88,7 +95,9 @@ export function PaperList() {
         {isError && (
           <div className="p-3 text-center text-sm text-red-500">
             <p>加载失败</p>
-            <button onClick={() => refetch()} className="underline mt-1 text-xs">重试</button>
+            <button onClick={() => refetch()} className="underline mt-1 text-xs">
+              重试
+            </button>
           </div>
         )}
 
@@ -102,21 +111,29 @@ export function PaperList() {
         {papers?.map((p) => (
           <div
             key={p.id}
-            className={`group relative px-3 py-2.5 cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-900 ${
+            className={`group relative px-3 py-2.5 transition-colors border-b border-gray-100 dark:border-gray-900 ${
               currentPaperId === p.id
                 ? 'bg-blue-50 dark:bg-blue-950/40 border-l-2 border-l-blue-500'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-900 border-l-2 border-l-transparent'
             }`}
-            onClick={() => setCurrentPaperId(p.id)}
           >
-            <div className="text-sm font-medium truncate pr-6 text-gray-800 dark:text-gray-200">
-              {p.title || '未命名论文'}
-            </div>
-            <div className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
-              {formatDate(p.updated_at)}
+            {/* Clickable title area (separate from action buttons) */}
+            <div
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer outline-none"
+              onClick={() => setCurrentPaperId(p.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter') setCurrentPaperId(p.id) }}
+            >
+              <div className="text-sm font-medium truncate pr-6 text-gray-800 dark:text-gray-200">
+                {p.title || '未命名论文'}
+              </div>
+              <div className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
+                {formatDate(p.updated_at)}
+              </div>
             </div>
 
-            {/* Three-dot menu container */}
+            {/* Action buttons */}
             <div
               className={`absolute right-1 top-1/2 -translate-y-1/2 transition-opacity ${
                 menuOpen === p.id
@@ -127,24 +144,29 @@ export function PaperList() {
               <button
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === p.id ? null : p.id) }}
                 className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                aria-label="论文操作"
+                aria-expanded={menuOpen === p.id}
               >
                 <MoreHorizontal size={14} />
               </button>
 
               {menuOpen === p.id && (
                 <div
-                  ref={menuRef}
+                  data-menu-id={p.id}
                   className="absolute right-0 top-full mt-0.5 w-28 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
+                  role="menu"
                 >
                   <button
                     onClick={(e) => { e.stopPropagation(); handleExport(p.id) }}
                     className="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                    role="menuitem"
                   >
                     <Download size={12} /> 导出
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}
                     className="w-full px-3 py-1.5 text-xs text-left hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 flex items-center gap-1.5"
+                    role="menuitem"
                   >
                     <Trash2 size={12} /> 删除
                   </button>

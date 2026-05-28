@@ -4,6 +4,9 @@ import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 
+const remarkPlugins = [remarkMath, remarkGfm]
+const rehypePlugins = [rehypeKatex, rehypeHighlight]
+
 interface MessageBubbleProps {
   role: 'user' | 'assistant'
   content: string
@@ -31,8 +34,8 @@ export function MessageBubble({ role, content, digest, isStreaming }: MessageBub
         )}
         <div className="markdown-body leading-relaxed">
           <ReactMarkdown
-            remarkPlugins={[remarkMath, remarkGfm]}
-            rehypePlugins={[rehypeKatex, rehypeHighlight]}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
           >
             {content}
           </ReactMarkdown>

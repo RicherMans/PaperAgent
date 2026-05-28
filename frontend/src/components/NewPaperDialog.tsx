@@ -166,6 +166,7 @@ export function NewPaperDialog() {
             onChange={(e) => { setUrl(e.target.value); setError(null) }}
             onKeyDown={handleKeyDown}
             placeholder="https://arxiv.org/abs/..."
+            aria-label="论文 URL"
             autoFocus
             disabled={loading}
             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm outline-none focus:ring-2 focus:ring-blue-500"

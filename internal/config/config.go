@@ -5,11 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
+	mu       sync.RWMutex
 	API      APIConfig      `yaml:"api"`
 	Obsidian ObsidianConfig `yaml:"obsidian"`
 	UI       UIConfig       `yaml:"ui"`
@@ -108,11 +110,33 @@ func (c *Config) Save() error {
 		return err
 	}
 
+	c.mu.RLock()
+	saveAPIKey := c.API.APIKey
+	c.mu.RUnlock()
+
 	// Mask API key for saving
-	saveCfg := *c
-	if saveCfg.API.APIKey != "" && !strings.HasPrefix(saveCfg.API.APIKey, "${") {
-		saveCfg.API.APIKey = "${OPENAI_API_KEY}"
+	maskedKey := saveAPIKey
+	if maskedKey != "" && !strings.HasPrefix(maskedKey, "${") {
+		maskedKey = "${OPENAI_API_KEY}"
 	}
+
+	c.mu.RLock()
+	saveCfg := Config{
+		API: APIConfig{
+			BaseURL:      c.API.BaseURL,
+			APIKey:       maskedKey,
+			DefaultModel: c.API.DefaultModel,
+			LightModel:   c.API.LightModel,
+		},
+		Obsidian: ObsidianConfig{
+			VaultPath:    c.Obsidian.VaultPath,
+			ExportFolder: c.Obsidian.ExportFolder,
+		},
+		UI: UIConfig{
+			MaxRecentRounds: c.UI.MaxRecentRounds,
+		},
+	}
+	c.mu.RUnlock()
 
 	data, err := yaml.Marshal(&saveCfg)
 	if err != nil {
@@ -129,3 +153,8 @@ func expandHome(path string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, path[1:])
 }
+
+func (c *Config) Lock()    { c.mu.Lock() }
+func (c *Config) Unlock()  { c.mu.Unlock() }
+func (c *Config) RLock()   { c.mu.RLock() }
+func (c *Config) RUnlock() { c.mu.RUnlock() }

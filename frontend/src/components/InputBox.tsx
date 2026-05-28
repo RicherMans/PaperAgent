@@ -120,10 +120,16 @@ export function InputBox() {
     <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 relative">
       {/* Command autocomplete */}
       {showCommands && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50">
+        <div className="absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50"
+          role="listbox"
+          aria-label="可用命令"
+          aria-expanded={showCommands}
+        >
           {filteredCommands.map((cmd, idx) => (
             <div
               key={cmd.name}
+              role="option"
+              aria-selected={idx === selectedCmdIdx}
               className={`px-3 py-2 text-sm cursor-pointer flex items-center gap-2 ${
                 idx === selectedCmdIdx
                   ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'

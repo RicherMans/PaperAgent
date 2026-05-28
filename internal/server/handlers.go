@@ -356,6 +356,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	s.cfg.RLock()
 	cfg := map[string]interface{}{
 		"api": map[string]string{
 			"base_url":      s.cfg.API.BaseURL,
@@ -371,6 +372,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 			"max_recent_rounds": s.cfg.UI.MaxRecentRounds,
 		},
 	}
+	s.cfg.RUnlock()
 	writeJSON(w, http.StatusOK, cfg)
 }
 
@@ -383,6 +385,7 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.cfg.Lock()
 	if v, ok := updates["obsidian_vault_path"].(string); ok {
 		s.cfg.Obsidian.VaultPath = v
 	}
@@ -391,9 +394,11 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.cfg.Save(); err != nil {
+		s.cfg.Unlock()
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save config failed"})
 		return
 	}
+	s.cfg.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
