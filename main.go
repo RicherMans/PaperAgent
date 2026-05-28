@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -49,24 +52,33 @@ func main() {
 }
 
 func runServer(cfg *config.Config) {
-	srv := server.New(cfg)
-
-	// Handle graceful shutdown
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		fmt.Println("\nShutting down...")
-		os.Exit(0)
-	}()
+	s := server.New(cfg)
 
 	addr := ":8686"
 	if v := os.Getenv("PAPER_ADDR"); v != "" {
 		addr = v
 	}
 
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: s.Handler(),
+	}
+
+	// Handle graceful shutdown
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigCh
+		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
+		}
+	}()
+
 	fmt.Printf("PaperPaper server starting on http://localhost%s\n", addr)
-	if err := srv.Start(addr); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}

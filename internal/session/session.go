@@ -56,6 +56,83 @@ func (p *Paper) Ref() string {
 	return ""
 }
 
+func (p *Paper) AddMessage(msg Message) {
+	if p == nil {
+		return
+	}
+	p.Messages = append(p.Messages, msg)
+	p.UpdatedAt = time.Now()
+	p.TotalTokens += msg.TokenCount
+}
+
+func (p *Paper) SetInitialSummary(summary string) {
+	if p == nil {
+		return
+	}
+	p.InitialSummary = summary
+	p.UpdatedAt = time.Now()
+}
+
+func (p *Paper) SetTitle(title string) {
+	if p == nil {
+		return
+	}
+	p.Title = title
+}
+
+func (p *Paper) DeleteRound(round int) {
+	if p == nil {
+		return
+	}
+	var filtered []Message
+	for _, msg := range p.Messages {
+		if msg.RoundNumber != round {
+			filtered = append(filtered, msg)
+		}
+	}
+	p.Messages = filtered
+	p.UpdatedAt = time.Now()
+}
+
+func (p *Paper) CurrentRound() int {
+	if p == nil || len(p.Messages) == 0 {
+		return 0
+	}
+	return p.Messages[len(p.Messages)-1].RoundNumber
+}
+
+func (p *Paper) RecentMessages(n int) []Message {
+	if p == nil {
+		return nil
+	}
+	msgs := p.Messages
+	if len(msgs) <= n*2 {
+		return msgs
+	}
+	return msgs[len(msgs)-n*2:]
+}
+
+func (p *Paper) Save() error {
+	if p == nil {
+		return nil
+	}
+	return SavePaper(p)
+}
+
+func (p *Paper) EditLastAssistant(content string, tokenCount int) {
+	if p == nil || len(p.Messages) == 0 {
+		return
+	}
+	for i := len(p.Messages) - 1; i >= 0; i-- {
+		if p.Messages[i].Role == "assistant" {
+			p.Messages[i].Content = content
+			p.Messages[i].TokenCount = tokenCount
+			p.UpdatedAt = time.Now()
+			return
+		}
+	}
+}
+
 type Manager struct {
 	mu    sync.Mutex
 	paper *Paper

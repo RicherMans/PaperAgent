@@ -11,7 +11,6 @@ import (
 
 	"github.com/paperpaper/paperpaper/internal/api"
 	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/session"
 )
 
 //go:embed frontend-dist
@@ -20,7 +19,6 @@ var frontendDist embed.FS
 type Server struct {
 	cfg *config.Config
 	api *api.Client
-	mgr *session.Manager
 	mux *http.ServeMux
 }
 
@@ -28,7 +26,6 @@ func New(cfg *config.Config) *Server {
 	s := &Server{
 		cfg: cfg,
 		api: api.NewClient(cfg),
-		mgr: session.NewManager(),
 		mux: http.NewServeMux(),
 	}
 	s.registerRoutes()
@@ -67,9 +64,13 @@ func (s *Server) registerStatic() {
 	}))
 }
 
+func (s *Server) Handler() http.Handler {
+	return withCORS(withLogging(s.mux))
+}
+
 func (s *Server) Start(addr string) error {
 	log.Printf("PaperPaper server starting on http://%s\n", addr)
-	return http.ListenAndServe(addr, withCORS(withLogging(s.mux)))
+	return http.ListenAndServe(addr, s.Handler())
 }
 
 func withLogging(next http.Handler) http.Handler {
@@ -104,7 +105,12 @@ func (lw *loggingResponseWriter) Flush() {
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin != "" && corsAllowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
@@ -113,4 +119,8 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func corsAllowedOrigin(origin string) bool {
+	return strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1")
 }

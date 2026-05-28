@@ -12,6 +12,7 @@ paperpaper
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/tsconfig.tsbuildinfo
 internal/server/frontend-dist/
 
 # Misc dev artifacts

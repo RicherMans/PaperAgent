@@ -31,7 +31,7 @@ type sseWriter struct {
 	flusher http.Flusher
 }
 
-func newSSEWriter(w http.ResponseWriter) *sseWriter {
+func newSSEWriter(w http.ResponseWriter) (*sseWriter, error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -39,10 +39,10 @@ func newSSEWriter(w http.ResponseWriter) *sseWriter {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		panic("http response writer does not support flushing")
+		return nil, fmt.Errorf("response writer does not support flushing")
 	}
 
-	return &sseWriter{w: w, flusher: flusher}
+	return &sseWriter{w: w, flusher: flusher}, nil
 }
 
 func (s *sseWriter) WriteEvent(evt SSEEvent) error {

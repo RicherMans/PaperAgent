@@ -56,8 +56,9 @@ type paperSummaryResponse struct {
 
 // --- Handlers ---
 
-// handleNewPaper creates a new paper and streams the initial summary.
 func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10 MB
+
 	var req newPaperRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -77,9 +78,8 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 
 	paper := session.NewPaper(content, sourceURL)
 	paper.ModelUsed = s.cfg.API.DefaultModel
-	s.mgr.SetPaper(paper)
 
-	if err := session.SavePaper(paper); err != nil {
+	if err := paper.Save(); err != nil {
 		log.Printf("[new-paper] save error: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save failed"})
 		return
@@ -88,10 +88,13 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[new-paper] paper created: %s", paper.Ref())
 
 	// Start SSE stream
-	sw := newSSEWriter(w)
+	sw, err := newSSEWriter(w)
+	if err != nil {
+		log.Printf("[new-paper] SSE not supported: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+		return
+	}
 
-	// CRITICAL: send "created" event with paper ID FIRST,
-	// so the frontend can start displaying the ChatView immediately
 	if err := sw.WriteCreated(paper.Ref()); err != nil {
 		log.Printf("[new-paper] failed to send created event: %v", err)
 		return
@@ -99,8 +102,8 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[new-paper] starting summary stream for %s", paper.Ref())
 
-	// Add initial user message (for context tracking, not displayed in UI)
-	s.mgr.AddMessage(session.Message{
+	// Add initial user message
+	paper.AddMessage(session.Message{
 		RoundNumber: 0,
 		Role:        "user",
 		Content:     content,
@@ -114,9 +117,15 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 
 	ch := s.api.ChatStream(s.cfg.API.DefaultModel, messages)
 	var summaryBuilder strings.Builder
-	chunkCount := 0
 
 	for chunk := range ch {
+		select {
+		case <-r.Context().Done():
+			log.Printf("[new-paper] client disconnected")
+			return
+		default:
+		}
+
 		if chunk.Err != nil {
 			log.Printf("[new-paper] stream error: %v", chunk.Err)
 			sw.WriteError(chunk.Err.Error())
@@ -130,21 +139,19 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[new-paper] write chunk error: %v", err)
 			return
 		}
-		chunkCount++
 	}
 
 	summary := summaryBuilder.String()
-	log.Printf("[new-paper] summary complete for %s: %d chars, %d chunks", paper.Ref(), len(summary), chunkCount)
+	log.Printf("[new-paper] summary complete for %s: %d chars", paper.Ref(), len(summary))
 
-	s.mgr.SetInitialSummary(summary)
-	session.SavePaper(paper)
+	paper.SetInitialSummary(summary)
+	paper.Save()
 
-	// Extract title synchronously before sending "done",
-	// so the frontend can receive the title event and update the paper list
+	// Extract title synchronously
 	title, err := s.api.ExtractTitle(s.cfg.API.LightModel, content)
 	if err == nil && title != "" {
-		s.mgr.SetTitle(title)
-		session.SavePaper(paper)
+		paper.SetTitle(title)
+		paper.Save()
 		sw.WriteTitle(title)
 		log.Printf("[new-paper] title extracted: %s", title)
 	} else if err != nil {
@@ -154,7 +161,6 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 	sw.WriteDone(paper.Ref())
 }
 
-// handleGetPaper returns full paper details.
 func (s *Server) handleGetPaper(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	paper, err := session.LoadPaperByRef(id)
@@ -162,11 +168,9 @@ func (s *Server) handleGetPaper(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
 		return
 	}
-	s.mgr.SetPaper(paper)
 	writeJSON(w, http.StatusOK, paperToResponse(paper))
 }
 
-// handleListPapers returns all paper summaries.
 func (s *Server) handleListPapers(w http.ResponseWriter, r *http.Request) {
 	papers, err := session.ListPapers()
 	if err != nil {
@@ -185,7 +189,6 @@ func (s *Server) handleListPapers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-// handleDeletePaper deletes a paper.
 func (s *Server) handleDeletePaper(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := session.DeletePaperByRef(id); err != nil {
@@ -195,7 +198,6 @@ func (s *Server) handleDeletePaper(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// handleChat handles a Q&A round with SSE streaming.
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	log.Printf("[chat] loading paper %s", id)
@@ -205,10 +207,16 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
 		return
 	}
-	s.mgr.SetPaper(paper)
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cannot read request body"})
+		return
+	}
 
 	var req chatRequest
-	body, _ := io.ReadAll(r.Body)
 	if err := json.Unmarshal(body, &req); err != nil || req.Question == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "question required"})
 		return
@@ -216,10 +224,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[chat] question: %s", req.Question)
 
-	round := 1
-	if len(paper.Messages) > 0 {
-		round = paper.Messages[len(paper.Messages)-1].RoundNumber + 1
-	}
+	round := paper.CurrentRound() + 1
 
 	// Add user message
 	userMsg := session.Message{
@@ -228,10 +233,10 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		Content:     req.Question,
 		TokenCount:  session.EstimateTokens(req.Question),
 	}
-	s.mgr.AddMessage(userMsg)
+	paper.AddMessage(userMsg)
 
 	// Build messages for CHAT phase
-	recent := s.mgr.GetRecentMessages(s.cfg.UI.MaxRecentRounds)
+	recent := paper.RecentMessages(s.cfg.UI.MaxRecentRounds)
 	messages := []api.ChatMessage{
 		{Role: "system", Content: prompt.GetLight()},
 		{Role: "user", Content: fmt.Sprintf("以下是论文全文：\n\n%s", paper.Content)},
@@ -241,12 +246,24 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stream answer via SSE
-	sw := newSSEWriter(w)
+	sw, err := newSSEWriter(w)
+	if err != nil {
+		log.Printf("[chat] SSE not supported: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+		return
+	}
 
 	ch := s.api.ChatStream(s.cfg.API.DefaultModel, messages)
 	var answerBuilder strings.Builder
 
 	for chunk := range ch {
+		select {
+		case <-r.Context().Done():
+			log.Printf("[chat] client disconnected")
+			return
+		default:
+		}
+
 		if chunk.Err != nil {
 			log.Printf("[chat] stream error: %v", chunk.Err)
 			sw.WriteError(chunk.Err.Error())
@@ -271,30 +288,31 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		Content:     answer,
 		TokenCount:  session.EstimateTokens(answer),
 	}
-	s.mgr.AddMessage(assistantMsg)
-	session.SavePaper(paper)
+	paper.AddMessage(assistantMsg)
+	paper.Save()
 
-	// Generate digest async
-	go func(mgr *session.Manager, question string, r int) {
+	// Generate digest async — reload paper inside goroutine by ref
+	go func(paperRef string, question string, round int) {
 		digest, err := s.api.SummarizeQuestion(s.cfg.API.LightModel, question)
 		if err == nil && digest != "" {
-			p := mgr.Paper()
-			if p != nil {
-				for i := range p.Messages {
-					if p.Messages[i].Role == "user" && p.Messages[i].RoundNumber == r {
-						p.Messages[i].Digest = digest
-						break
-					}
-				}
-				session.SavePaper(p)
+			p, loadErr := session.LoadPaperByRef(paperRef)
+			if loadErr != nil {
+				log.Printf("[chat] reload paper for digest: %v", loadErr)
+				return
 			}
+			for i := range p.Messages {
+				if p.Messages[i].Role == "user" && p.Messages[i].RoundNumber == round {
+					p.Messages[i].Digest = digest
+					break
+				}
+			}
+			p.Save()
 		}
-	}(s.mgr, req.Question, round)
+	}(paper.Ref(), req.Question, round)
 
 	sw.WriteDone(paper.Ref())
 }
 
-// handleDeleteRound deletes a specific Q&A round.
 func (s *Server) handleDeleteRound(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	nStr := r.PathValue("n")
@@ -304,7 +322,6 @@ func (s *Server) handleDeleteRound(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
 		return
 	}
-	s.mgr.SetPaper(paper)
 
 	n, err := strconv.Atoi(nStr)
 	if err != nil {
@@ -312,13 +329,12 @@ func (s *Server) handleDeleteRound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mgr.DeleteRound(n)
-	session.SavePaper(paper)
+	paper.DeleteRound(n)
+	paper.Save()
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// handleExport exports a paper to Obsidian.
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	paper, err := session.LoadPaperByRef(id)
@@ -339,7 +355,6 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGetConfig returns current config (without API key).
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := map[string]interface{}{
 		"api": map[string]string{
@@ -359,8 +374,9 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, cfg)
 }
 
-// handleUpdateConfig updates configuration.
 func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB
+
 	var updates map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
@@ -410,7 +426,9 @@ func (s *Server) fetchPaperContent(req newPaperRequest) (content string, sourceU
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("json encode error: %v", err)
+	}
 }
 
 func paperToResponse(p *session.Paper) paperResponse {
