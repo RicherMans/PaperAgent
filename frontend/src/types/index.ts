@@ -25,22 +25,6 @@ export interface PaperSummary {
   updated_at: string
 }
 
-export interface ApiConfig {
-  api: {
-    base_url: string
-    api_key: string
-    default_model: string
-    light_model: string
-  }
-  obsidian: {
-    vault_path: string
-    export_folder: string
-  }
-  ui: {
-    max_recent_rounds: number
-  }
-}
-
 // ---- SSE Event Types ----
 
 export interface SSEEvent {
@@ -58,5 +42,3 @@ export interface SSEEvent {
 export type Theme = 'light' | 'dark' | 'system'
 
 export type FontSize = 'small' | 'medium' | 'large'
-
-export type ViewState = 'empty' | 'loading' | 'active'

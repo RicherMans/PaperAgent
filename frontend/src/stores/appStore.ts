@@ -40,6 +40,10 @@ interface AppState {
   // Input
   inputValue: string
   setInputValue: (v: string) => void
+
+  // Send question callback — set by ChatView so InputBox can send
+  sendQuestion: ((q: string) => void) | null
+  setSendQuestion: (fn: ((q: string) => void) | null) => void
 }
 
 // --- Theme ---
@@ -50,7 +54,7 @@ function getInitialTheme(): Theme {
   return 'system'
 }
 
-function applyTheme(theme: Theme) {
+export function applyTheme(theme: Theme) {
   const root = document.documentElement
   if (theme === 'dark') {
     root.classList.add('dark')
@@ -101,10 +105,13 @@ export const useAppStore = create<AppState>((set) => ({
     set({ fontSize: size })
   },
   cycleFontSize: () => {
-    const current = useAppStore.getState().fontSize
-    const idx = FONT_CYCLE.indexOf(current)
-    const next = FONT_CYCLE[(idx + 1) % FONT_CYCLE.length]
-    useAppStore.getState().setFontSize(next)
+    set((s) => {
+      const idx = FONT_CYCLE.indexOf(s.fontSize)
+      const next = FONT_CYCLE[(idx + 1) % FONT_CYCLE.length]
+      localStorage.setItem('paperpaper-font-size', next)
+      applyFontSize(next)
+      return { fontSize: next }
+    })
   },
 
   currentPaperId: null,
@@ -131,15 +138,11 @@ export const useAppStore = create<AppState>((set) => ({
 
   inputValue: '',
   setInputValue: (v) => set({ inputValue: v }),
+
+  sendQuestion: null,
+  setSendQuestion: (fn) => set({ sendQuestion: fn }),
 }))
 
 // Apply initial values
 applyTheme(getInitialTheme())
 applyFontSize(getInitialFontSize())
-
-if (typeof window !== 'undefined') {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    const current = useAppStore.getState().theme
-    if (current === 'system') applyTheme('system')
-  })
-}

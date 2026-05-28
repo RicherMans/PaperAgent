@@ -4,20 +4,20 @@ import { useAppStore } from '../stores/appStore'
 import { useExportPaper } from '../hooks/usePapers'
 import { toast } from 'sonner'
 
-interface Command {
+interface CmdEntry {
   name: string
   description: string
   action: () => void
 }
 
 export function InputBox() {
-  const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen } = useAppStore()
+  const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen, sendQuestion } = useAppStore()
   const exportPaper = useExportPaper()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [showCommands, setShowCommands] = useState(false)
   const [selectedCmdIdx, setSelectedCmdIdx] = useState(0)
 
-  const commands: Command[] = [
+  const commands: CmdEntry[] = [
     {
       name: '/export',
       description: '导出到 Obsidian',
@@ -81,12 +81,11 @@ export function InputBox() {
     }
 
     // Regular question - send to chat
-    const sendFn = (window as unknown as Record<string, unknown>).__paperpaper_send as ((q: string) => void) | undefined
-    if (sendFn) {
-      sendFn(trimmed)
+    if (sendQuestion) {
+      sendQuestion(trimmed)
       setInputValue('')
     }
-  }, [inputValue, isStreaming, currentPaperId, setInputValue])
+  }, [inputValue, isStreaming, currentPaperId, setInputValue, sendQuestion])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showCommands) {

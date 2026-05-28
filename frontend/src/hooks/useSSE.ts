@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useAppStore } from '../stores/appStore'
 import type { SSEEvent } from '../types'
 
@@ -10,13 +10,26 @@ interface SSEOptions {
 
 export function useSSE() {
   const { setIsStreaming, appendToStreamBuffer, clearStreamBuffer } = useAppStore()
+  const abortRef = useRef<AbortController | null>(null)
+
+  const abort = useCallback(() => {
+    abortRef.current?.abort()
+    abortRef.current = null
+  }, [])
+
+  // Auto-abort on unmount
+  useEffect(() => () => abort(), [abort])
 
   const streamRequest = useCallback(async (
     url: string,
     body: unknown,
     options: SSEOptions = {},
   ) => {
-    console.log('[SSE] starting stream to', url, 'with body:', body)
+    abort() // abort any previous in-flight request
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setIsStreaming(true)
     clearStreamBuffer()
 
@@ -28,14 +41,12 @@ export function useSSE() {
           'Accept': 'text/event-stream',
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       })
-
-      console.log('[SSE] response status:', response.status)
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
         const errMsg = (errData as { error?: string }).error || `HTTP ${response.status}`
-        console.error('[SSE] error response:', errMsg)
         options.onError?.(errMsg)
         setIsStreaming(false)
         return
@@ -53,10 +64,7 @@ export function useSSE() {
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) {
-          console.log('[SSE] stream ended')
-          break
-        }
+        if (done) break
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -80,23 +88,23 @@ export function useSSE() {
                 options.onDone?.(evt.paper_id || '')
                 break
               case 'error':
-                console.error('[SSE] stream error:', evt.error)
                 options.onError?.(evt.error || 'Unknown error')
                 break
             }
           } catch {
-            // Skip unparseable lines (e.g., [DONE])
+            // skip
           }
         }
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : 'Network error'
-      console.error('[SSE] fetch error:', msg)
       options.onError?.(msg)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setIsStreaming(false)
     }
-  }, [setIsStreaming, appendToStreamBuffer, clearStreamBuffer])
+  }, [setIsStreaming, appendToStreamBuffer, clearStreamBuffer, abort])
 
-  return { streamRequest }
+  return { streamRequest, abort }
 }

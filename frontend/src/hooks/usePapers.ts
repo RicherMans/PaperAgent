@@ -30,20 +30,6 @@ export function usePaper(id: string | null) {
   })
 }
 
-export function useCreatePaper() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { url?: string; content?: string }) =>
-      fetchJSON<{ id: string }>(`${BASE}/papers`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['papers'] })
-    },
-  })
-}
-
 export function useDeletePaper() {
   const qc = useQueryClient()
   return useMutation({
@@ -51,17 +37,6 @@ export function useDeletePaper() {
       fetchJSON(`${BASE}/papers/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['papers'] })
-    },
-  })
-}
-
-export function useDeleteRound() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ paperId, round }: { paperId: string; round: number }) =>
-      fetchJSON(`${BASE}/papers/${paperId}/rounds/${round}`, { method: 'DELETE' }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['paper', vars.paperId] })
     },
   })
 }

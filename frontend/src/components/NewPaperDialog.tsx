@@ -28,9 +28,10 @@ export function NewPaperDialog() {
     const controller = new AbortController()
     abortRef.current = controller
 
-    try {
-      console.log('[NewPaper] POST /api/papers with URL:', trimmed)
+    // Timeout: abort if stream doesn't complete within 60s
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
 
+    try {
       const res = await fetch('/api/papers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,15 +39,12 @@ export function NewPaperDialog() {
         signal: controller.signal,
       })
 
-      console.log('[NewPaper] response status:', res.status)
-
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error((errData as { error?: string }).error || `HTTP ${res.status}`)
       }
 
       const contentType = res.headers.get('content-type') || ''
-      console.log('[NewPaper] content-type:', contentType)
 
       if (contentType.includes('text/event-stream')) {
         // SSE stream from handleNewPaper
@@ -72,7 +70,6 @@ export function NewPaperDialog() {
             const jsonStr = trimmedLine.slice(6)
             try {
               const evt = JSON.parse(jsonStr)
-              console.log('[NewPaper] SSE event:', evt.type)
 
               switch (evt.type) {
                 case 'created':
@@ -94,7 +91,6 @@ export function NewPaperDialog() {
                   break
                 case 'title':
                   // Title extracted — update the paper list
-                  console.log('[NewPaper] title received:', evt.title)
                   if (paperId) {
                     // Invalidate papers list so it refetches with new title
                     qc.invalidateQueries({ queryKey: ['papers'] })
@@ -104,7 +100,6 @@ export function NewPaperDialog() {
                   break
                 case 'done':
                   // Summary complete - ChatView will refetch
-                  console.log('[NewPaper] summary complete')
                   clearPending()
                   break
                 case 'error':
@@ -128,10 +123,10 @@ export function NewPaperDialog() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
       const msg = err instanceof Error ? err.message : '加载失败'
-      console.error('[NewPaper] error:', msg)
       setError(msg)
       toast.error(msg)
     } finally {
+      clearTimeout(timeoutId)
       setLoading(false)
       abortRef.current = null
     }

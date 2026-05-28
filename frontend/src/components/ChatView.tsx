@@ -12,14 +12,14 @@ import { ScrollButtons } from './ScrollButtons'
 import { FontSizeButton } from './FontSizeButton'
 import type { Message } from '../types'
 
+const remarkPlugins = [remarkMath, remarkGfm]
+const rehypePlugins = [rehypeKatex, rehypeHighlight]
+
 /** Inline lightweight markdown renderer for streaming content. */
 function StreamRenderer({ content }: { content: string }) {
   return (
     <div className="markdown-body text-sm leading-relaxed">
-      <ReactMarkdown
-        remarkPlugins={[remarkMath, remarkGfm]}
-        rehypePlugins={[rehypeKatex, rehypeHighlight]}
-      >
+      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>
         {content}
       </ReactMarkdown>
     </div>
@@ -92,16 +92,18 @@ export function ChatView() {
     }
   }, [streamingContent, pendingSummary, scrollToBottom, isStreamingLocal, isPending])
 
-  // When pending stream finishes, refetch
+  // When pending stream finishes, refetch the paper
+  const refetchPaperRef = useRef(refetch)
+  refetchPaperRef.current = refetch
   useEffect(() => {
-    if (currentPaperId && pendingPaperId === null && paper && !paper.initial_summary) {
-      refetch()
+    if (pendingPaperId === null && currentPaperId && paper && !paper.initial_summary) {
+      refetchPaperRef.current()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPaperId])
 
   const handleSendQuestion = useCallback(async (question: string) => {
     if (!currentPaperId || isStreamingLocal) return
-    console.log('[ChatView] sending question:', question)
 
     setStreamingContent('')
     setIsStreamingLocal(true)
@@ -122,10 +124,12 @@ export function ChatView() {
     })
   }, [currentPaperId, isStreamingLocal, streamRequest, refetch])
 
+  // Register send handler so InputBox can trigger it
+  const setSendQuestion = useAppStore((s) => s.setSendQuestion)
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).__paperpaper_send = handleSendQuestion
-    return () => { delete (window as unknown as Record<string, unknown>).__paperpaper_send }
-  }, [handleSendQuestion])
+    setSendQuestion(() => handleSendQuestion)
+    return () => setSendQuestion(null)
+  }, [handleSendQuestion, setSendQuestion])
 
   // --- Empty state ---
   if (!currentPaperId) {
