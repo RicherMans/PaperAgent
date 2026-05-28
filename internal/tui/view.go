@@ -158,6 +158,10 @@ func (m *Model) renderThinkingBar() string {
 	if end > barWidth {
 		end = barWidth
 	}
+	// Guard: when pos > barWidth + 4, start can exceed end
+	if start > end {
+		start = end
+	}
 
 	var bar strings.Builder
 	for i := 0; i < barWidth; i++ {
