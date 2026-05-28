@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/paperpaper/paperpaper/internal/api"
@@ -20,6 +21,7 @@ type Server struct {
 	cfg *config.Config
 	api *api.Client
 	mux *http.ServeMux
+	paperLocks sync.Map
 }
 
 func New(cfg *config.Config) *Server {
@@ -32,6 +34,15 @@ func New(cfg *config.Config) *Server {
 	return s
 }
 
+// lockPaper acquires per-paper write lock for load→modify→save sequences.
+// Returns unlock func. Safe for concurrent access across goroutines.
+func (s *Server) lockPaper(id string) func() {
+	v, _ := s.paperLocks.LoadOrStore(id, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func (s *Server) registerRoutes() {
 	mux := s.mux
 
@@ -42,6 +53,8 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("POST /api/papers/{id}/chat", s.handleChat)
 	mux.HandleFunc("DELETE /api/papers/{id}/rounds/{n}", s.handleDeleteRound)
 	mux.HandleFunc("POST /api/papers/{id}/export", s.handleExport)
+	mux.HandleFunc("POST /api/papers/{id}/retry-summary", s.handleRetrySummary)
+	mux.HandleFunc("POST /api/papers/{id}/chat/{round}/retry", s.handleRetryChat)
 	mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
 

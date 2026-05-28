@@ -4,6 +4,7 @@ import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
+import { RefreshCw } from 'lucide-react'
 import { usePaper } from '../hooks/usePapers'
 import { useSSE } from '../hooks/useSSE'
 import { useAppStore } from '../stores/appStore'
@@ -15,7 +16,6 @@ import type { Message } from '../types'
 const remarkPlugins = [remarkMath, remarkGfm]
 const rehypePlugins = [rehypeKatex, rehypeHighlight]
 
-/** Inline lightweight markdown renderer for streaming content. */
 function StreamRenderer({ content }: { content: string }) {
   return (
     <div className="markdown-body text-sm leading-relaxed">
@@ -37,62 +37,63 @@ export function ChatView() {
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreamingLocal, setIsStreamingLocal] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
-  // Track if user has scrolled up during streaming
+  const [retryingSummary, setRetryingSummary] = useState(false)
+  const [retrySummaryContent, setRetrySummaryContent] = useState('')
+  const [retryingRound, setRetryingRound] = useState<number | null>(null)
+  // Track which round the current stream is answering
+  const answeringRound = useRef<number | null>(null)
   const userScrolledUp = useRef(false)
-  // Track if we're programmatically scrolling (to avoid triggering scroll listener)
   const isAutoScrolling = useRef(false)
 
   const isPending = pendingPaperId === currentPaperId
+
+  // Paper has content but no summary — not currently loading or pending
+  const needsSummaryRetry = !isLoading && !isPending && !retryingSummary && paper && !paper.initial_summary
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
       isAutoScrolling.current = true
       containerRef.current.scrollTop = containerRef.current.scrollHeight
       userScrolledUp.current = false
-      // Reset after scroll completes
-      requestAnimationFrame(() => {
-        isAutoScrolling.current = false
-      })
+      requestAnimationFrame(() => { isAutoScrolling.current = false })
     }
   }, [])
 
-  // Listen for user scroll to detect if they scroll up during streaming
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
     const handleScroll = () => {
-      // Ignore programmatic scrolls
       if (isAutoScrolling.current) return
-
       const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
       if (isNearBottom) {
         userScrolledUp.current = false
       } else if (isStreamingLocal || isPending) {
-        // User scrolled up while streaming is active
         userScrolledUp.current = true
       }
     }
-
     el.addEventListener('scroll', handleScroll, { passive: true })
     return () => el.removeEventListener('scroll', handleScroll)
   }, [isStreamingLocal, isPending])
 
-  // Auto-scroll on new messages (only when not streaming)
   useEffect(() => {
-    if (!isStreamingLocal && !isPending) {
+    if (!isStreamingLocal && !isPending && !retryingSummary && retryingRound === null) {
       scrollToBottom()
     }
-  }, [paper?.messages?.length, scrollToBottom, isStreamingLocal, isPending])
+  }, [paper?.messages?.length, scrollToBottom, isStreamingLocal, isPending, retryingSummary, retryingRound])
 
-  // Auto-scroll during streaming — only if user hasn't scrolled up
   useEffect(() => {
     if ((isStreamingLocal || isPending) && !userScrolledUp.current) {
       scrollToBottom()
     }
   }, [streamingContent, pendingSummary, scrollToBottom, isStreamingLocal, isPending])
 
-  // When pending stream finishes, refetch the paper
+  // Auto-scroll during retry-summary stream
+  useEffect(() => {
+    if (retryingSummary && !userScrolledUp.current) {
+      scrollToBottom()
+    }
+  }, [retrySummaryContent, scrollToBottom, retryingSummary])
+
   const refetchPaperRef = useRef(refetch)
   refetchPaperRef.current = refetch
   useEffect(() => {
@@ -110,11 +111,18 @@ export function ChatView() {
     setStreamError(null)
     userScrolledUp.current = false
 
+    // Determine the round for this question
+    const nextRound = (paper?.messages?.length ?? 0) > 0
+      ? Math.max(...paper!.messages.map(m => m.round_number), 0) + 1
+      : 1
+    answeringRound.current = nextRound
+
     await streamRequest(`/api/papers/${currentPaperId}/chat`, { question }, {
       onChunk: (content) => setStreamingContent((prev) => prev + content),
       onDone: () => {
         setIsStreamingLocal(false)
         setStreamingContent('')
+        answeringRound.current = null
         refetch()
       },
       onError: (error) => {
@@ -122,14 +130,68 @@ export function ChatView() {
         setIsStreamingLocal(false)
       },
     })
-  }, [currentPaperId, isStreamingLocal, streamRequest, refetch])
+  }, [currentPaperId, isStreamingLocal, streamRequest, refetch, paper?.messages])
 
-  // Register send handler so InputBox can trigger it
+  const handleRetrySummary = useCallback(async () => {
+    if (!currentPaperId) return
+
+    setRetryingSummary(true)
+    setRetrySummaryContent('')
+    userScrolledUp.current = false
+
+    await streamRequest(`/api/papers/${currentPaperId}/retry-summary`, {}, {
+      onChunk: (content) => setRetrySummaryContent((prev) => prev + content),
+      onDone: () => {
+        setRetryingSummary(false)
+        setRetrySummaryContent('')
+        refetch()
+      },
+      onError: (error) => {
+        setRetryingSummary(false)
+        setRetrySummaryContent('')
+        setStreamError(error)
+      },
+    })
+  }, [currentPaperId, streamRequest, refetch])
+
+  const handleRetryChat = useCallback(async (round: number) => {
+    if (!currentPaperId) return
+
+    setRetryingRound(round)
+    setStreamingContent('')
+    setStreamError(null)
+    userScrolledUp.current = false
+
+    await streamRequest(`/api/papers/${currentPaperId}/chat/${round}/retry`, {}, {
+      onChunk: (content) => setStreamingContent((prev) => prev + content),
+      onDone: () => {
+        setRetryingRound(null)
+        setStreamingContent('')
+        refetch()
+      },
+      onError: (error) => {
+        setStreamError(error)
+        setRetryingRound(null)
+      },
+    })
+  }, [currentPaperId, streamRequest, refetch])
+
   const setSendQuestion = useAppStore((s) => s.setSendQuestion)
   useEffect(() => {
     setSendQuestion(() => handleSendQuestion)
     return () => setSendQuestion(null)
   }, [handleSendQuestion, setSendQuestion])
+
+  // Find last user round without an assistant answer (for retry)
+  const lastUnansweredRound = useRef<number | null>(null)
+  if (paper && !isStreamingLocal && !retryingSummary && retryingRound === null) {
+    const msgs = paper.messages
+    if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
+      lastUnansweredRound.current = msgs[msgs.length - 1].round_number
+    } else {
+      lastUnansweredRound.current = null
+    }
+  }
 
   // --- Empty state ---
   if (!currentPaperId) {
@@ -198,7 +260,7 @@ export function ChatView() {
 
       {/* Messages */}
       <div ref={containerRef} className="flex-1 overflow-y-auto custom-scrollbar">
-        {/* PENDING SUMMARY STREAM */}
+        {/* PENDING SUMMARY STREAM (from NewPaperDialog SSE) */}
         {isPending && (
           <div className="flex gap-3 px-4 py-3">
             <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
@@ -221,6 +283,29 @@ export function ChatView() {
           </div>
         )}
 
+        {/* RETRY SUMMARY STREAM */}
+        {retryingSummary && (
+          <div className="flex gap-3 px-4 py-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+              style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}>AI</div>
+            <div className="flex-1 min-w-0">
+              {retrySummaryContent ? (
+                <StreamRenderer content={retrySummaryContent} />
+              ) : (
+                <div className="flex items-center gap-1 py-1">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="text-xs text-gray-400 ml-1">正在重新生成摘要...</span>
+                </div>
+              )}
+              {retrySummaryContent && (
+                <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-0.5 align-middle" />
+              )}
+            </div>
+          </div>
+        )}
+
         {/* COMPLETED MESSAGES */}
         {allMessages.map((msg, idx) => (
           <MessageBubble
@@ -232,10 +317,10 @@ export function ChatView() {
         ))}
 
         {/* CHAT STREAM */}
-        {isStreamingLocal && streamingContent && (
+        {(isStreamingLocal || retryingRound !== null) && streamingContent && (
           <MessageBubble role="assistant" content={streamingContent} isStreaming />
         )}
-        {isStreamingLocal && !streamingContent && (
+        {(isStreamingLocal && !streamingContent) && (
           <div className="flex gap-3 px-4 py-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
               style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}>AI</div>
@@ -247,13 +332,36 @@ export function ChatView() {
           </div>
         )}
 
+        {/* NEEDS SUMMARY RETRY */}
+        {needsSummaryRetry && !retryingSummary && (
+          <div className="px-4 py-6 flex flex-col items-center gap-3">
+            <p className="text-sm text-gray-400">摘要生成未完成，点击重新生成</p>
+            <button
+              onClick={handleRetrySummary}
+              className="px-4 py-2 text-sm rounded-lg bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-1.5"
+            >
+              <RefreshCw size={14} /> 重新生成摘要
+            </button>
+          </div>
+        )}
+
         {/* ERRORS */}
         {(streamError || pendingError) && (
           <div className="px-4 py-3">
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/30 rounded-lg p-3">
-              ⚠️ {streamError || pendingError}
-              <button onClick={() => { setStreamError(null); clearPending() }}
-                className="ml-2 underline hover:no-underline">关闭</button>
+            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/30 rounded-lg p-3 flex items-center gap-2 flex-wrap">
+              <span>⚠️ {streamError || pendingError}</span>
+              <div className="flex gap-2 ml-auto">
+                {lastUnansweredRound.current !== null && !retryingSummary && (
+                  <button
+                    onClick={() => handleRetryChat(lastUnansweredRound.current!)}
+                    className="underline hover:no-underline text-blue-500 flex items-center gap-1"
+                  >
+                    <RefreshCw size={12} /> 重试
+                  </button>
+                )}
+                <button onClick={() => { setStreamError(null); clearPending() }}
+                  className="underline hover:no-underline">关闭</button>
+              </div>
             </div>
           </div>
         )}

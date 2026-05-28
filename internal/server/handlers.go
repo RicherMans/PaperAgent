@@ -202,8 +202,10 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	log.Printf("[chat] loading paper %s", id)
 
+	unlock := s.lockPaper(id)
 	paper, err := session.LoadPaperByRef(id)
 	if err != nil {
+		unlock()
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
 		return
 	}
@@ -212,12 +214,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		unlock()
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cannot read request body"})
 		return
 	}
 
 	var req chatRequest
 	if err := json.Unmarshal(body, &req); err != nil || req.Question == "" {
+		unlock()
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "question required"})
 		return
 	}
@@ -244,6 +248,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	for _, msg := range recent {
 		messages = append(messages, api.ChatMessage{Role: msg.Role, Content: msg.Content})
 	}
+	unlock() // Release lock before SSE stream
 
 	// Stream answer via SSE
 	sw, err := newSSEWriter(w)
@@ -281,6 +286,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	answer := answerBuilder.String()
 	log.Printf("[chat] answer complete: %d chars", len(answer))
 
+	unlock = s.lockPaper(id)
 	// Save assistant message
 	assistantMsg := session.Message{
 		RoundNumber: round,
@@ -290,6 +296,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	paper.AddMessage(assistantMsg)
 	paper.Save()
+	unlock()
 
 	// Generate digest async — reload paper inside goroutine by ref
 	go func(paperRef string, question string, round int) {
@@ -317,20 +324,24 @@ func (s *Server) handleDeleteRound(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	nStr := r.PathValue("n")
 
+	unlock := s.lockPaper(id)
 	paper, err := session.LoadPaperByRef(id)
 	if err != nil {
+		unlock()
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
 		return
 	}
 
 	n, err := strconv.Atoi(nStr)
 	if err != nil {
+		unlock()
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid round number"})
 		return
 	}
 
 	paper.DeleteRound(n)
 	paper.Save()
+	unlock()
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -353,6 +364,221 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		"status": "exported",
 		"path":   exportPath,
 	})
+}
+
+// handleRetrySummary regenerates or continues the initial summary via SSE.
+// If initial_summary is empty, starts fresh.
+// If initial_summary has content, sends "continue from here" prompt.
+func (s *Server) handleRetrySummary(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	unlock := s.lockPaper(id)
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		unlock()
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+
+	if paper.Content == "" {
+		unlock()
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "paper content is empty"})
+		return
+	}
+
+	existingSummary := paper.InitialSummary
+	unlock()
+
+	// Build messages
+	msgs := []api.ChatMessage{
+		{Role: "system", Content: prompt.GetHeavy()},
+		{Role: "user", Content: paper.Content},
+	}
+
+	if existingSummary != "" {
+		msgs = append(msgs,
+			api.ChatMessage{Role: "assistant", Content: existingSummary},
+			api.ChatMessage{Role: "user", Content: "Continue writing the summary from where you left off. Do not repeat what has already been written. Simply continue."},
+		)
+		log.Printf("[retry-summary] continuing from existing %d chars", len(existingSummary))
+	} else {
+		log.Printf("[retry-summary] fresh summary generation")
+	}
+
+	sw, err := newSSEWriter(w)
+	if err != nil {
+		log.Printf("[retry-summary] SSE not supported: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+		return
+	}
+
+	ch := s.api.ChatStream(s.cfg.API.DefaultModel, msgs)
+	var newContent strings.Builder
+
+	for chunk := range ch {
+		select {
+		case <-r.Context().Done():
+			log.Printf("[retry-summary] client disconnected")
+			return
+		default:
+		}
+
+		if chunk.Err != nil {
+			log.Printf("[retry-summary] stream error: %v", chunk.Err)
+			sw.WriteError(chunk.Err.Error())
+			return
+		}
+		if chunk.Done {
+			break
+		}
+		newContent.WriteString(chunk.Content)
+		if err := sw.WriteChunk(chunk.Content); err != nil {
+			return
+		}
+	}
+
+	unlock = s.lockPaper(id)
+	defer unlock()
+
+	// Re-load to get latest state
+	paper, err = session.LoadPaperByRef(id)
+	if err != nil {
+		log.Printf("[retry-summary] reload failed after stream: %v", err)
+		return
+	}
+
+	final := existingSummary + newContent.String()
+	paper.SetInitialSummary(final)
+	paper.Save()
+
+	// Extract title if not set yet
+	if paper.Title == "" {
+		title, err := s.api.ExtractTitle(s.cfg.API.LightModel, paper.Content)
+		if err == nil && title != "" {
+			paper.SetTitle(title)
+			paper.Save()
+			sw.WriteTitle(title)
+		} else if err != nil {
+			log.Printf("[retry-summary] title extraction failed: %v", err)
+		}
+	}
+
+	sw.WriteDone(paper.Ref())
+}
+
+// handleRetryChat regenerates the assistant answer for a specific round.
+func (s *Server) handleRetryChat(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	nStr := r.PathValue("round")
+
+	unlock := s.lockPaper(id)
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		unlock()
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+
+	round, err := strconv.Atoi(nStr)
+	if err != nil {
+		unlock()
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid round number"})
+		return
+	}
+
+	// Find user message for this round to get the question
+	var question string
+	for _, m := range paper.Messages {
+		if m.RoundNumber == round && m.Role == "user" {
+			question = m.Content
+			break
+		}
+	}
+	if question == "" {
+		unlock()
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "round not found"})
+		return
+	}
+
+	// Remove existing assistant message for this round
+	var filtered []session.Message
+	for _, m := range paper.Messages {
+		if !(m.RoundNumber == round && m.Role == "assistant") {
+			filtered = append(filtered, m)
+		}
+	}
+	paper.Messages = filtered
+
+	// Build messages: paper + recent rounds up to (but not including) this round
+	messages := []api.ChatMessage{
+		{Role: "system", Content: prompt.GetLight()},
+		{Role: "user", Content: fmt.Sprintf("以下是论文全文：\n\n%s", paper.Content)},
+	}
+	// Include messages from rounds before this one
+	for _, m := range paper.Messages {
+		if m.RoundNumber < round || (m.RoundNumber == round && m.Role == "user") {
+			messages = append(messages, api.ChatMessage{Role: m.Role, Content: m.Content})
+		}
+	}
+	// Cap recent context
+	if len(messages) > s.cfg.UI.MaxRecentRounds*2+2 {
+		messages = append([]api.ChatMessage{messages[0], messages[1]}, messages[len(messages)-s.cfg.UI.MaxRecentRounds*2:]...)
+	}
+	unlock() // Release lock before SSE stream
+
+	sw, err := newSSEWriter(w)
+	if err != nil {
+		log.Printf("[retry-chat] SSE not supported: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+		return
+	}
+
+	ch := s.api.ChatStream(s.cfg.API.DefaultModel, messages)
+	var answer strings.Builder
+
+	for chunk := range ch {
+		select {
+		case <-r.Context().Done():
+			log.Printf("[retry-chat] client disconnected")
+			return
+		default:
+		}
+
+		if chunk.Err != nil {
+			log.Printf("[retry-chat] stream error: %v", chunk.Err)
+			sw.WriteError(chunk.Err.Error())
+			return
+		}
+		if chunk.Done {
+			break
+		}
+		answer.WriteString(chunk.Content)
+		if err := sw.WriteChunk(chunk.Content); err != nil {
+			return
+		}
+	}
+
+	result := answer.String()
+	log.Printf("[retry-chat] answer complete: %d chars", len(result))
+
+	unlock = s.lockPaper(id)
+	defer unlock()
+
+	paper, err = session.LoadPaperByRef(id)
+	if err != nil {
+		log.Printf("[retry-chat] reload failed: %v", err)
+		return
+	}
+
+	paper.AddMessage(session.Message{
+		RoundNumber: round,
+		Role:        "assistant",
+		Content:     result,
+		TokenCount:  session.EstimateTokens(result),
+	})
+	paper.Save()
+
+	sw.WriteDone(paper.Ref())
 }
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
