@@ -119,20 +119,6 @@ func (p *Paper) Save() error {
 	return SavePaper(p)
 }
 
-func (p *Paper) EditLastAssistant(content string, tokenCount int) {
-	if p == nil || len(p.Messages) == 0 {
-		return
-	}
-	for i := len(p.Messages) - 1; i >= 0; i-- {
-		if p.Messages[i].Role == "assistant" {
-			p.Messages[i].Content = content
-			p.Messages[i].TokenCount = tokenCount
-			p.UpdatedAt = time.Now()
-			return
-		}
-	}
-}
-
 type Manager struct {
 	mu    sync.Mutex
 	paper *Paper

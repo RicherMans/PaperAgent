@@ -105,14 +105,19 @@ func defaultConfig() *Config {
 }
 
 func (c *Config) Save() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.saveLocked()
+}
+
+// saveLocked writes config to disk. Caller must hold c.mu write lock.
+func (c *Config) saveLocked() error {
 	dir := ConfigDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	c.mu.RLock()
 	saveAPIKey := c.API.APIKey
-	c.mu.RUnlock()
 
 	// Mask API key for saving
 	maskedKey := saveAPIKey
@@ -120,7 +125,6 @@ func (c *Config) Save() error {
 		maskedKey = "${OPENAI_API_KEY}"
 	}
 
-	c.mu.RLock()
 	saveCfg := Config{
 		API: APIConfig{
 			BaseURL:      c.API.BaseURL,
@@ -136,7 +140,6 @@ func (c *Config) Save() error {
 			MaxRecentRounds: c.UI.MaxRecentRounds,
 		},
 	}
-	c.mu.RUnlock()
 
 	data, err := yaml.Marshal(&saveCfg)
 	if err != nil {

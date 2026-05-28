@@ -392,13 +392,12 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	if v, ok := updates["obsidian_export_folder"].(string); ok {
 		s.cfg.Obsidian.ExportFolder = v
 	}
+	s.cfg.Unlock()
 
 	if err := s.cfg.Save(); err != nil {
-		s.cfg.Unlock()
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save config failed"})
 		return
 	}
-	s.cfg.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
