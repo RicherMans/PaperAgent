@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paperpaper/paperpaper/internal/config"
+	"github.com/paperpaper/paperagent/internal/config"
 )
 
 func setupTestDir(t *testing.T) string {
@@ -41,7 +41,7 @@ func TestNewPaper(t *testing.T) {
 
 func TestNextID(t *testing.T) {
 	tmpDir := setupTestDir(t)
-	papersDir := filepath.Join(tmpDir, ".paperpaper", "papers")
+	papersDir := filepath.Join(tmpDir, ".paperagent", "papers")
 	os.MkdirAll(papersDir, 0755)
 
 	// Create some paper files

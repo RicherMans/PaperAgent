@@ -55,7 +55,7 @@ func TestGetSummarize(t *testing.T) {
 func TestGetWithUserOverride(t *testing.T) {
 	// Create a temp dir for user prompts
 	tmpDir := t.TempDir()
-	promptsDir := filepath.Join(tmpDir, ".paperpaper", "prompts")
+	promptsDir := filepath.Join(tmpDir, ".paperagent", "prompts")
 	os.MkdirAll(promptsDir, 0755)
 
 	// Write custom prompt

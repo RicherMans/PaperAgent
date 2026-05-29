@@ -1,4 +1,4 @@
-paperpaper
+paperagent
 *.exe
 *.test
 *.out
@@ -7,7 +7,8 @@ paperpaper
 .vscode/
 *.swp
 *.swo
-.paperpaper/
+.paperagent/
+.claude/
 
 # Frontend
 frontend/node_modules/
@@ -16,5 +17,5 @@ frontend/tsconfig.tsbuildinfo
 internal/server/frontend-dist/
 
 # Misc dev artifacts
-paperpaper-web
+paperagent-web
 skills-lock.json

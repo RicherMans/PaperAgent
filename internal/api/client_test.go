@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paperpaper/paperpaper/internal/config"
+	"github.com/paperpaper/paperagent/internal/config"
 )
 
 func testConfig(t *testing.T) *config.Config {

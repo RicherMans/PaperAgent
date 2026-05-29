@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/session"
+	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/paperpaper/paperagent/internal/session"
 )
 
 func TestSanitizeFilename(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/paperpaper/paperpaper/internal/session"
+	"github.com/paperpaper/paperagent/internal/session"
 )
 
 func (m *Model) View() tea.View {
@@ -59,14 +59,14 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) renderWindowTitle() string {
-	title := "PaperPaper"
+	title := "PaperAgent"
 	if p := m.manager.Paper(); p != nil {
 		paperTitle := strings.TrimSpace(p.Title)
 		if paperTitle == "" && p.SourceURL != "" {
 			paperTitle = p.SourceURL
 		}
 		if paperTitle != "" {
-			title = "PaperPaper — " + paperTitle
+			title = "PaperAgent — " + paperTitle
 		}
 	}
 	title = strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(title)
@@ -206,7 +206,7 @@ func (m *Model) renderNormalModeBar() string {
 }
 
 func (m *Model) renderHeader() string {
-	title := "PaperPaper"
+	title := "PaperAgent"
 	if m.mode == ModeList {
 		if m.listKind == ListKindRounds {
 			title = "问答列表"
@@ -400,7 +400,7 @@ func (m *Model) renderCommandSuggestions() string {
 func (m *Model) renderMessages() string {
 	p := m.manager.Paper()
 	if p == nil {
-		return bannerStyle.Render("欢迎使用 PaperPaper!\n\n请输入 arXiv 链接或 ID，然后按 Enter 开始抓取并总结。\n\n也可以粘贴论文全文，或使用 /new <arxiv/url/path> 从 arXiv、URL 或文件加载。")
+		return bannerStyle.Render("欢迎使用 PaperAgent!\n\n请输入 arXiv 链接或 ID，然后按 Enter 开始抓取并总结。\n\n也可以粘贴论文全文，或使用 /new <arxiv/url/path> 从 arXiv、URL 或文件加载。")
 	}
 
 	var b strings.Builder

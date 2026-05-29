@@ -1,8 +1,8 @@
-# PaperPaper 📄
+# PaperAgent 📄
 
 **给你的论文装上 AI 大脑 —— 粘贴链接，深度解析，多轮追问。**
 
-PaperPaper 是一个 AI 论文阅读助手。给它一篇论文（arXiv 链接、文件或粘贴），AI 生成详实、可复现级别的深度解析，随后进入多轮问答模式。所有对话持久化到本地，随时可以恢复。
+PaperAgent 是一个 AI 论文阅读助手。给它一篇论文（arXiv 链接、文件或粘贴），AI 生成详实、可复现级别的深度解析，随后进入多轮问答模式。所有对话持久化到本地，随时可以恢复。
 
 **默认启动为 Web UI 模式**（浏览器自动打开），添加 `--tui` 参数进入终端模式。
 
@@ -36,8 +36,8 @@ Gemini 有 1M token 上下文，听起来很美好。但论文全文本身就有
 ### 从源码构建
 
 ```bash
-git clone https://github.com/happyTonakai/paper-paper.git
-cd paperpaper
+git clone https://github.com/happyTonakai/paper-agent.git
+cd paperagent
 just build
 ```
 
@@ -58,7 +58,7 @@ export OPENAI_MODEL_NAME="gpt-4o"                     # 可选
 export PAPER_ADDR=":8686"                             # 可选，Web UI 监听地址
 ```
 
-### 2. 配置文件 `~/.paperpaper/config.yaml`
+### 2. 配置文件 `~/.paperagent/config.yaml`
 
 ```yaml
 api:
@@ -75,7 +75,7 @@ ui:
 
 ### 3. 自定义 Prompt
 
-在 `~/.paperpaper/prompts/` 下放置同名文件覆盖内置 prompt：
+在 `~/.paperagent/prompts/` 下放置同名文件覆盖内置 prompt：
 
 - `heavy.txt` — 初始深度摘要的 system prompt
 - `light.txt` — 问答阶段的 system prompt
@@ -87,16 +87,16 @@ ui:
 
 ```bash
 # Web UI 模式（默认）：浏览器自动打开，端口被占用时自动 +1
-paperpaper
+paperagent
 
 # 终端 TUI 模式
-paperpaper --tui
+paperagent --tui
 
 # 开发模式：Go 后端 + Vite HMR 前端，浏览器访问 http://localhost:5173
 just dev
 
 # 也可指定监听地址
-PAPER_ADDR=":9000" paperpaper
+PAPER_ADDR=":9000" paperagent
 ```
 
 ### Web UI 操作
@@ -112,7 +112,7 @@ PAPER_ADDR=":9000" paperpaper
 | `/config` | 打开设置（主题切换） |
 | `/help` | 显示帮助 |
 
-> **注意**：当前 Web UI 主要通过 URL（arXiv）来加载论文。终端模式 (`paperpaper --tui`) 仍支持文件路径和标准输入粘贴。
+> **注意**：当前 Web UI 主要通过 URL（arXiv）来加载论文。终端模式 (`paperagent --tui`) 仍支持文件路径和标准输入粘贴。
 
 ## 架构
 
@@ -176,7 +176,7 @@ PAPER_ADDR=":9000" paperpaper
 
 ### 数据持久化
 
-每篇论文以 JSON 文件保存在 `~/.paperpaper/papers/{uuid}.json`，包含完整论文内容、摘要、对话历史。支持 UUID 会话 ID 和旧版数字 ID 向后兼容。
+每篇论文以 JSON 文件保存在 `~/.paperagent/papers/{uuid}.json`，包含完整论文内容、摘要、对话历史。支持 UUID 会话 ID 和旧版数字 ID 向后兼容。
 
 ## 开发
 
@@ -215,8 +215,8 @@ just clean
 | 后端 | Go 1.25+ (net/http, embed) |
 | SSE 流式 | Server-Sent Events |
 | LLM API | OpenAI 兼容接口 |
-| 持久化 | JSON 文件 (~/.paperpaper/papers/) |
-| 旧架构 | Bubble Tea 2 (保留，可通过 `paperpaper --tui` 启动) |
+| 持久化 | JSON 文件 (~/.paperagent/papers/) |
+| 旧架构 | Bubble Tea 2 (保留，可通过 `paperagent --tui` 启动) |
 
 ## 许可
 

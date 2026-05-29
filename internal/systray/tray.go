@@ -28,18 +28,18 @@ func Run(opts Options, httpServer *http.Server) {
 
 func onReady(opts Options) {
 	systray.SetIcon(iconData)
-	systray.SetTitle("PaperPaper")
-	systray.SetTooltip("PaperPaper - AI 论文阅读助手")
+	systray.SetTitle("PaperAgent")
+	systray.SetTooltip("PaperAgent - AI 论文阅读助手")
 
 	url := fmt.Sprintf("http://localhost:%d", opts.Port)
 
-	mOpen := systray.AddMenuItem("打开 Web 界面", "在浏览器中打开 PaperPaper")
+	mOpen := systray.AddMenuItem("打开 Web 界面", "在浏览器中打开 PaperAgent")
 	mOpen.SetIcon(iconData)
 
 	systray.AddSeparator()
 
-	mQuit := systray.AddMenuItem("退出", "退出 PaperPaper")
-	mAbout := systray.AddMenuItem("关于 PaperPaper", "AI 论文阅读助手")
+	mQuit := systray.AddMenuItem("退出", "退出 PaperAgent")
+	mAbout := systray.AddMenuItem("关于 PaperAgent", "AI 论文阅读助手")
 
 	go func() {
 		for {

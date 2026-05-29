@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/paperpaper/paperpaper/internal/api"
-	"github.com/paperpaper/paperpaper/internal/config"
+	"github.com/paperpaper/paperagent/internal/api"
+	"github.com/paperpaper/paperagent/internal/config"
 )
 
 //go:embed frontend-dist
@@ -88,7 +88,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) Start(addr string) error {
-	log.Printf("PaperPaper server starting on http://%s\n", addr)
+	log.Printf("PaperAgent server starting on http://%s\n", addr)
 	return http.ListenAndServe(addr, s.Handler())
 }
 

@@ -8,11 +8,11 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbletea/v2"
 
-	"github.com/paperpaper/paperpaper/internal/api"
-	exportPkg "github.com/paperpaper/paperpaper/internal/export"
-	"github.com/paperpaper/paperpaper/internal/prompt"
-	"github.com/paperpaper/paperpaper/internal/session"
-	"github.com/paperpaper/paperpaper/internal/urlparse"
+	"github.com/paperpaper/paperagent/internal/api"
+	exportPkg "github.com/paperpaper/paperagent/internal/export"
+	"github.com/paperpaper/paperagent/internal/prompt"
+	"github.com/paperpaper/paperagent/internal/session"
+	"github.com/paperpaper/paperagent/internal/urlparse"
 
 	"charm.land/bubbles/v2/textarea"
 )
@@ -447,7 +447,7 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 		if len(parts) > 1 {
 			return m.loadFromInput(strings.TrimSpace(parts[1]))
 		}
-		m.viewport.SetContent(bannerStyle.Render("欢迎使用 PaperPaper!\n\n请输入 arXiv 链接或 ID，然后按 Enter 开始抓取并总结。\n\n也可以粘贴论文全文，Shift+Enter 换行；或使用 /new <arxiv/url/path> 从 arXiv、URL 或文件加载。"))
+		m.viewport.SetContent(bannerStyle.Render("欢迎使用 PaperAgent!\n\n请输入 arXiv 链接或 ID，然后按 Enter 开始抓取并总结。\n\n也可以粘贴论文全文，Shift+Enter 换行；或使用 /new <arxiv/url/path> 从 arXiv、URL 或文件加载。"))
 		return m, nil
 
 	case "/resume":

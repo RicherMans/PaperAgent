@@ -57,7 +57,7 @@ interface AppState {
 // --- Theme ---
 
 function getInitialTheme(): Theme {
-  const stored = localStorage.getItem('paperpaper-theme')
+  const stored = localStorage.getItem('paperagent-theme')
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
   return 'system'
 }
@@ -88,7 +88,7 @@ const FONT_SIZES: Record<FontSize, string> = {
 const FONT_CYCLE: FontSize[] = ['small', 'medium', 'large']
 
 function getInitialFontSize(): FontSize {
-  const stored = localStorage.getItem('paperpaper-font-size')
+  const stored = localStorage.getItem('paperagent-font-size')
   if (stored === 'small' || stored === 'medium' || stored === 'large') return stored
   return 'medium'
 }
@@ -99,11 +99,11 @@ function applyFontSize(size: FontSize) {
 }
 
 function getInitialContentWidth(): 'full' | 'narrow' {
-  return localStorage.getItem('paperpaper-content-width') === 'narrow' ? 'narrow' : 'full'
+  return localStorage.getItem('paperagent-content-width') === 'narrow' ? 'narrow' : 'full'
 }
 
 function getInitialSidebarWidth(): number {
-  const stored = localStorage.getItem('paperpaper-sidebar-width')
+  const stored = localStorage.getItem('paperagent-sidebar-width')
   if (stored) {
     const n = parseInt(stored, 10)
     if (n >= 180 && n <= 500) return n
@@ -114,14 +114,14 @@ function getInitialSidebarWidth(): number {
 export const useAppStore = create<AppState>((set) => ({
   theme: getInitialTheme(),
   setTheme: (theme) => {
-    localStorage.setItem('paperpaper-theme', theme)
+    localStorage.setItem('paperagent-theme', theme)
     applyTheme(theme)
     set({ theme })
   },
 
   fontSize: getInitialFontSize(),
   setFontSize: (size) => {
-    localStorage.setItem('paperpaper-font-size', size)
+    localStorage.setItem('paperagent-font-size', size)
     applyFontSize(size)
     set({ fontSize: size })
   },
@@ -129,7 +129,7 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => {
       const idx = FONT_CYCLE.indexOf(s.fontSize)
       const next = FONT_CYCLE[(idx + 1) % FONT_CYCLE.length]
-      localStorage.setItem('paperpaper-font-size', next)
+      localStorage.setItem('paperagent-font-size', next)
       applyFontSize(next)
       return { fontSize: next }
     })
@@ -167,14 +167,14 @@ export const useAppStore = create<AppState>((set) => ({
   toggleContentWidth: () => {
     set((s) => {
       const next = s.contentWidth === 'full' ? 'narrow' : 'full'
-      localStorage.setItem('paperpaper-content-width', next)
+      localStorage.setItem('paperagent-content-width', next)
       return { contentWidth: next }
     })
   },
 
   sidebarWidth: getInitialSidebarWidth(),
   setSidebarWidth: (w) => {
-    localStorage.setItem('paperpaper-sidebar-width', String(w))
+    localStorage.setItem('paperagent-sidebar-width', String(w))
     set({ sidebarWidth: w })
   },
 }))

@@ -10,9 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/paperpaper/paperpaper/internal/api"
-	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/session"
+	"github.com/paperpaper/paperagent/internal/api"
+	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/paperpaper/paperagent/internal/session"
 )
 
 func testConfig() *config.Config {
@@ -72,8 +72,8 @@ func TestWelcomeScreen(t *testing.T) {
 	sendWindowSize(m, 120, 40)
 
 	view := m.View().Content
-	if !strings.Contains(view, "PaperPaper") {
-		t.Error("welcome screen should contain 'PaperPaper'")
+	if !strings.Contains(view, "PaperAgent") {
+		t.Error("welcome screen should contain 'PaperAgent'")
 	}
 	if !strings.Contains(view, "INPUT") {
 		t.Error("should start in INPUT mode")
@@ -516,7 +516,7 @@ func TestNewCommand(t *testing.T) {
 	}
 
 	view := m.View().Content
-	if !strings.Contains(view, "欢迎使用 PaperPaper") {
+	if !strings.Contains(view, "欢迎使用 PaperAgent") {
 		t.Error("should show welcome banner")
 	}
 }
@@ -786,8 +786,8 @@ func TestRenderHeader(t *testing.T) {
 	sendWindowSize(m, 120, 40)
 
 	header := m.renderHeader()
-	if !strings.Contains(header, "PaperPaper") {
-		t.Error("header should show PaperPaper")
+	if !strings.Contains(header, "PaperAgent") {
+		t.Error("header should show PaperAgent")
 	}
 	if !strings.Contains(header, "Init") {
 		t.Error("header should show Init phase")
@@ -809,10 +809,10 @@ func TestFullFlow(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	// 1. Start: should show PaperPaper in header
+	// 1. Start: should show PaperAgent in header
 	view := m.View().Content
-	if !strings.Contains(view, "PaperPaper") {
-		t.Error("should show PaperPaper")
+	if !strings.Contains(view, "PaperAgent") {
+		t.Error("should show PaperAgent")
 	}
 
 	// 2. Type a paper and submit
@@ -1352,15 +1352,15 @@ func TestWindowTitleUsesAppAndPaperTitle(t *testing.T) {
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	if got := m.View().WindowTitle; got != "PaperPaper" {
-		t.Fatalf("expected default window title PaperPaper, got %q", got)
+	if got := m.View().WindowTitle; got != "PaperAgent" {
+		t.Fatalf("expected default window title PaperAgent, got %q", got)
 	}
 
 	p := session.NewPaper("paper content", "")
 	p.Title = "A Great Paper"
 	m.LoadPaper(p)
 
-	if got := m.View().WindowTitle; got != "PaperPaper — A Great Paper" {
+	if got := m.View().WindowTitle; got != "PaperAgent — A Great Paper" {
 		t.Fatalf("expected paper window title, got %q", got)
 	}
 }

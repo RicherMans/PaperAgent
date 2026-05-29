@@ -12,12 +12,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/server"
-	"github.com/paperpaper/paperpaper/internal/session"
-	"github.com/paperpaper/paperpaper/internal/systray"
-	"github.com/paperpaper/paperpaper/internal/tui"
-	"github.com/paperpaper/paperpaper/internal/urlparse"
+	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/paperpaper/paperagent/internal/server"
+	"github.com/paperpaper/paperagent/internal/session"
+	"github.com/paperpaper/paperagent/internal/systray"
+	"github.com/paperpaper/paperagent/internal/tui"
+	"github.com/paperpaper/paperagent/internal/urlparse"
 )
 
 var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")
@@ -30,7 +30,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("paperpaper %s\n", version)
+		fmt.Printf("paperagent %s\n", version)
 		os.Exit(0)
 	}
 
@@ -46,7 +46,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Please configure your API key:")
 		fmt.Fprintln(os.Stderr, "  export OPENAI_API_KEY=your-key-here")
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Or create ~/.paperpaper/config.yaml with api.api_key set.")
+		fmt.Fprintln(os.Stderr, "Or create ~/.paperagent/config.yaml with api.api_key set.")
 		os.Exit(1)
 	}
 
@@ -82,7 +82,7 @@ func runSystray(cfg *config.Config) {
 	}
 
 	url := fmt.Sprintf("http://localhost:%d", actualPort)
-	fmt.Printf("PaperPaper server starting on %s\n", url)
+	fmt.Printf("PaperAgent server starting on %s\n", url)
 
 	// Start HTTP server in background goroutine
 	go func() {

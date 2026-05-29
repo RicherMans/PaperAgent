@@ -9,11 +9,11 @@ type SortBy = 'time' | 'rating'
 type SortOrder = 'asc' | 'desc'
 
 function getInitialSortBy(): SortBy {
-  const v = localStorage.getItem('paperpaper-sort-by')
+  const v = localStorage.getItem('paperagent-sort-by')
   return v === 'rating' ? 'rating' : 'time'
 }
 function getInitialSortOrder(): SortOrder {
-  const v = localStorage.getItem('paperpaper-sort-order')
+  const v = localStorage.getItem('paperagent-sort-order')
   return v === 'asc' ? 'asc' : 'desc'
 }
 
@@ -84,13 +84,13 @@ export function PaperList() {
 
   const toggleSortBy = () => {
     const next: SortBy = sortBy === 'time' ? 'rating' : 'time'
-    localStorage.setItem('paperpaper-sort-by', next)
+    localStorage.setItem('paperagent-sort-by', next)
     setSortBy(next)
   }
 
   const toggleSortOrder = () => {
     const next: SortOrder = sortOrder === 'desc' ? 'asc' : 'desc'
-    localStorage.setItem('paperpaper-sort-order', next)
+    localStorage.setItem('paperagent-sort-order', next)
     setSortOrder(next)
   }
 

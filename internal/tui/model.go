@@ -12,10 +12,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/paperpaper/paperpaper/internal/api"
-	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/prompt"
-	"github.com/paperpaper/paperpaper/internal/session"
+	"github.com/paperpaper/paperagent/internal/api"
+	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/paperpaper/paperagent/internal/prompt"
+	"github.com/paperpaper/paperagent/internal/session"
 
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"

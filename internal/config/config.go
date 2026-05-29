@@ -35,7 +35,7 @@ type UIConfig struct {
 
 func ConfigDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".paperpaper")
+	return filepath.Join(home, ".paperagent")
 }
 
 func ConfigPath() string {
