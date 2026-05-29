@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump"
+        required: true
+        type: choice
+        default: "patch"
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Compute next version
+        id: version
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            NEXT="v0.1.0"
+          else
+            MAJOR=$(echo "$LATEST" | sed 's/v//;s/\..*//')
+            MINOR=$(echo "$LATEST" | sed 's/v[0-9]*\.//;s/\..*//')
+            PATCH=$(echo "$LATEST" | sed 's/v[0-9]*\.[0-9]*\.//')
+            case "${{ inputs.bump }}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Build frontend
+        run: cd frontend && npm ci && npm run build
+
+      - name: Build binaries
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          LDFLAGS="-s -w -X main.version=${VERSION}"
+          mkdir -p dist
+
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_darwin_arm64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_darwin_amd64 .
+          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_linux_amd64 .
+
+      - name: Create tag
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: dist/*

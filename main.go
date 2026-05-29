@@ -1,32 +1,38 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
-	"os/signal"
 	"runtime"
 	"strconv"
-	"syscall"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/paperpaper/paperpaper/internal/config"
 	"github.com/paperpaper/paperpaper/internal/server"
 	"github.com/paperpaper/paperpaper/internal/session"
+	"github.com/paperpaper/paperpaper/internal/systray"
 	"github.com/paperpaper/paperpaper/internal/tui"
 	"github.com/paperpaper/paperpaper/internal/urlparse"
 )
 
 var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")
+var versionFlag = flag.Bool("version", false, "Print version and exit")
+
+// version is set via ldflags at build time: -ldflags "-X main.version=v1.2.3"
+var version = "dev"
 
 func main() {
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("paperpaper %s\n", version)
+		os.Exit(0)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -52,19 +58,20 @@ func main() {
 		return
 	}
 
-	runServer(cfg)
+	runSystray(cfg)
 }
 
-func runServer(cfg *config.Config) {
+func runSystray(cfg *config.Config) {
 	s := server.New(cfg)
 
 	startPort := 8686
-	baseAddr := fmt.Sprintf(":%d", startPort)
 	if v := os.Getenv("PAPER_ADDR"); v != "" {
-		baseAddr = v
+		if p := parsePortFromAddr(v); p > 0 {
+			startPort = p
+		}
 	}
 
-	ln, actualPort, err := findAvailablePort(baseAddr)
+	ln, actualPort, err := findAvailablePort(fmt.Sprintf(":%d", startPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to find available port: %v\n", err)
 		os.Exit(1)
@@ -77,26 +84,34 @@ func runServer(cfg *config.Config) {
 	url := fmt.Sprintf("http://localhost:%d", actualPort)
 	fmt.Printf("PaperPaper server starting on %s\n", url)
 
-	// Handle graceful shutdown
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	// Start HTTP server in background goroutine
 	go func() {
-		sig := <-sigCh
-		fmt.Printf("\nReceived %v, shutting down...\n", sig)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := httpServer.Shutdown(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
+		if err := httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
+			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Auto-open browser
 	go openBrowser(url)
 
-	if err := httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
-		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-		os.Exit(1)
+	// Run systray (blocks until user quits)
+	systray.Run(systray.Options{Port: actualPort}, httpServer)
+}
+
+// parsePortFromAddr extracts the port number from an address string like ":8686" or "localhost:8686".
+// Returns 0 if parsing fails.
+func parsePortFromAddr(addr string) int {
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Try parsing as bare port if SplitHostPort fails
+		return 0
 	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0
+	}
+	return port
 }
 
 // findAvailablePort tries to listen on baseAddr. If the port is occupied,
