@@ -14,6 +14,7 @@ export function InputBox() {
   const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen, sendQuestion, contentWidth } = useAppStore()
   const exportPaper = useExportPaper()
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
   const [showCommands, setShowCommands] = useState(false)
   const [selectedCmdIdx, setSelectedCmdIdx] = useState(0)
 
@@ -64,12 +65,17 @@ export function InputBox() {
     }
   }, [inputValue])
 
+  // Ref to keep latest commands accessible from stable callbacks
+  const commandsRef = useRef(commands)
+  commandsRef.current = commands
+
   const handleSend = useCallback(() => {
-    const trimmed = inputValue.trim()
+    const value = inputRef.current?.value ?? ''
+    const trimmed = value.trim()
     if (!trimmed || isStreaming || !currentPaperId) return
 
     if (trimmed.startsWith('/')) {
-      const cmd = commands.find((c) => c.name === trimmed)
+      const cmd = commandsRef.current.find((c) => c.name === trimmed)
       if (cmd) {
         cmd.action()
         setInputValue('')
@@ -81,19 +87,33 @@ export function InputBox() {
       sendQuestion(trimmed)
       setInputValue('')
     }
-  }, [inputValue, isStreaming, currentPaperId, setInputValue, sendQuestion])
+  }, [isStreaming, currentPaperId, setInputValue, sendQuestion])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    // Defer reset so that a subsequent keydown Enter (same event tick)
+    // still sees isComposingRef.current === true.
+    setTimeout(() => { isComposingRef.current = false }, 0)
+  }, [])
+
+  const filteredCommandsRef = useRef(filteredCommands)
+  filteredCommandsRef.current = filteredCommands
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showCommands) {
+      const cmds = filteredCommandsRef.current
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedCmdIdx((i) => (i + 1) % filteredCommands.length)
+        setSelectedCmdIdx((i) => (i + 1) % cmds.length)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedCmdIdx((i) => (i - 1 + filteredCommands.length) % filteredCommands.length)
+        setSelectedCmdIdx((i) => (i - 1 + cmds.length) % cmds.length)
       } else if (e.key === 'Tab' || e.key === 'Enter') {
         e.preventDefault()
-        const cmd = filteredCommands[selectedCmdIdx]
+        const cmd = cmds[selectedCmdIdx]
         if (cmd) {
           setInputValue(cmd.name)
           setShowCommands(false)
@@ -105,10 +125,14 @@ export function InputBox() {
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
+      // Don't submit during IME composition (e.g. Chinese Pinyin Enter to commit raw input).
+      // isComposingRef is kept true via setTimeout(0) in onCompositionEnd to cover the
+      // case where compositionend fires before keydown (Chrome, Firefox).
+      if (isComposingRef.current || e.nativeEvent.isComposing) return
       e.preventDefault()
       handleSend()
     }
-  }
+  }, [showCommands, selectedCmdIdx, setInputValue, handleSend])
 
   if (!currentPaperId) return null
 
@@ -171,6 +195,8 @@ export function InputBox() {
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
             placeholder={isStreaming ? '正在生成回复...' : '输入问题，Shift+Enter 换行。输入 / 查看命令...'}
             disabled={isStreaming}
