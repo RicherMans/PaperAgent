@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -22,6 +23,7 @@ import (
 
 var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")
 var versionFlag = flag.Bool("version", false, "Print version and exit")
+var daemonFlag = flag.Bool("daemon", false, "internal: already running as background daemon")
 
 // version is set via ldflags at build time: -ldflags "-X main.version=v1.2.3"
 var version = "dev"
@@ -58,7 +60,40 @@ func main() {
 		return
 	}
 
+	if !*daemonFlag {
+		daemonize()
+	}
+
 	runSystray(cfg)
+}
+
+func daemonize() {
+	args := make([]string, 0, len(os.Args)+1)
+	args = append(args, os.Args...)
+	args = append(args, "--daemon")
+
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to find executable: %v\n", err)
+		os.Exit(1)
+	}
+
+	cmd := exec.Command(exe, args[1:]...)
+	cmd.Env = os.Environ()
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+	}
+
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start background process: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("PaperAgent started in background.")
+	os.Exit(0)
 }
 
 func runSystray(cfg *config.Config) {
