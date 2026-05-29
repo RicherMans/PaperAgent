@@ -1,8 +1,8 @@
-# PaperPaper 项目 justfile
+# PaperAgent 项目 justfile
 # 列出所有 recipe: just --list
 
-bin := "paperpaper"
-gocache := "/tmp/gocache-" + env_var_or_default("USER", "paperpaper")
+bin := "paperagent"
+gocache := "/tmp/gocache-" + env_var_or_default("USER", "paperagent")
 
 # ---- 默认 ----
 default:
