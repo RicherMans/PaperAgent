@@ -21,7 +21,7 @@ interface PromptInfo { name: string; content: string; source: string }
 const promptLabels: Record<string, string> = {
   heavy: '初始总结 (heavy)',
   light: '对话问答 (light)',
-  digest: '问答摘要 (digest)',
+  summarize: '对话总结 (summarize)',
 }
 
 export function SettingsDialog() {

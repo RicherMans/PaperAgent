@@ -80,22 +80,6 @@ func TestChatStreamIntegration(t *testing.T) {
 	t.Logf("Streamed: %s", content.String())
 }
 
-func TestSummarizeQuestionIntegration(t *testing.T) {
-	cfg := testConfig(t)
-	client := NewClient(cfg)
-
-	digest, err := client.SummarizeQuestion(cfg.API.DefaultModel, "What is the computational complexity of multi-head attention in the Transformer architecture?")
-	if err != nil {
-		t.Fatalf("summarize error: %v", err)
-	}
-
-	if digest == "" {
-		t.Error("expected non-empty digest")
-	}
-
-	t.Logf("Digest (%d chars): %s", len(digest), digest)
-}
-
 func TestExtractTitleIntegration(t *testing.T) {
 	cfg := testConfig(t)
 	client := NewClient(cfg)

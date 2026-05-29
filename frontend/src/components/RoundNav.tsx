@@ -29,12 +29,13 @@ export function RoundNav({ messages, containerRef }: RoundNavProps) {
     timerRef.current = setTimeout(() => { setHovered(false); setHoveredIdx(null) }, 300)
   }
 
-  const rounds: { round: number; digest: string }[] = []
+  const rounds: { round: number; label: string }[] = []
   const seen = new Set<number>()
   for (const msg of messages) {
     if (msg.role === 'user' && msg.round_number > 0 && !seen.has(msg.round_number)) {
       seen.add(msg.round_number)
-      rounds.push({ round: msg.round_number, digest: msg.digest || msg.content.slice(0, 50) })
+      const firstLine = msg.content.split('\n')[0]
+      rounds.push({ round: msg.round_number, label: firstLine.slice(0, 50) })
     }
   }
 
@@ -89,7 +90,7 @@ export function RoundNav({ messages, containerRef }: RoundNavProps) {
                 }}
               >
                 <span style={{ color: 'var(--color-accent)', fontWeight: 600 }}>#{r.round}</span>
-                {' '}{truncate(r.digest, 35)}
+                {' '}{truncate(r.label, 35)}
               </div>
 
               {/* Hit area fills entire COL_WIDTH × ROW_HEIGHT */}

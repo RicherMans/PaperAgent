@@ -1150,16 +1150,16 @@ func TestCtrlCRequiresDoublePress(t *testing.T) {
 	}
 }
 
-func TestUserMessageShowsFullContentAndDigestSeparately(t *testing.T) {
+func TestUserMessageShowsFullContent(t *testing.T) {
 	cfg := testConfig()
 	m := NewModel(cfg)
 	sendWindowSize(m, 120, 40)
 
-	longQuestion := "这是一个很长的问题，包含非常多的上下文，我希望它在上屏之后完整显示，而不是被截断或者被小模型摘要替换。"
+	longQuestion := "这是一个很长的问题，包含非常多的上下文，我希望它在上屏之后完整显示，而不是被截断。"
 	p := session.NewPaper("paper content", "")
 	p.InitialSummary = "summary"
 	p.Messages = []session.Message{
-		{RoundNumber: 1, Role: "user", Content: longQuestion, Digest: "小模型摘要", TokenCount: 42},
+		{RoundNumber: 1, Role: "user", Content: longQuestion, TokenCount: 42},
 	}
 	m.LoadPaper(p)
 	m.refreshViewportContent(true)
@@ -1167,9 +1167,6 @@ func TestUserMessageShowsFullContentAndDigestSeparately(t *testing.T) {
 	view := m.View().Content
 	if !strings.Contains(view, longQuestion) {
 		t.Fatal("full user question should be rendered")
-	}
-	if !strings.Contains(view, "摘要: 小模型摘要") {
-		t.Fatal("digest should be shown separately as metadata")
 	}
 }
 
@@ -1181,7 +1178,7 @@ func TestListShowsRoundJumpList(t *testing.T) {
 	p := session.NewPaper("paper content", "")
 	p.InitialSummary = strings.Repeat("summary line\n", 80)
 	p.Messages = []session.Message{
-		{RoundNumber: 1, Role: "user", Content: "first detailed question", Digest: "第一轮摘要", TokenCount: 5},
+		{RoundNumber: 1, Role: "user", Content: "第一轮摘要", TokenCount: 5},
 		{RoundNumber: 1, Role: "assistant", Content: strings.Repeat("long answer line\n", 80), TokenCount: 5},
 		{RoundNumber: 2, Role: "user", Content: "second detailed question", TokenCount: 5},
 		{RoundNumber: 2, Role: "assistant", Content: "answer", TokenCount: 5},
@@ -1197,7 +1194,7 @@ func TestListShowsRoundJumpList(t *testing.T) {
 	}
 	view := m.View().Content
 	if !strings.Contains(view, "第一轮摘要") || !strings.Contains(view, "second detailed question") {
-		t.Fatalf("round list should show digests or question text, got: %s", view)
+		t.Fatalf("round list should show question text, got: %s", view)
 	}
 
 	sendKeys(m, "enter")
@@ -1266,9 +1263,9 @@ func TestListIncludesRoundZeroWhenItHasAssistant(t *testing.T) {
 	p := session.NewPaper("paper content", "")
 	p.InitialSummary = "summary"
 	p.Messages = []session.Message{
-		{RoundNumber: 0, Role: "user", Content: "first question", Digest: "第一轮", TokenCount: 5},
+		{RoundNumber: 0, Role: "user", Content: "第一轮", TokenCount: 5},
 		{RoundNumber: 0, Role: "assistant", Content: "answer", TokenCount: 5},
-		{RoundNumber: 1, Role: "user", Content: "second question", Digest: "第二轮", TokenCount: 5},
+		{RoundNumber: 1, Role: "user", Content: "第二轮", TokenCount: 5},
 		{RoundNumber: 1, Role: "assistant", Content: "answer", TokenCount: 5},
 	}
 	m.LoadPaper(p)
@@ -1291,7 +1288,7 @@ func TestListSkipsInitialPaperLoadPseudoRound(t *testing.T) {
 	p.InitialSummary = "summary"
 	p.Messages = []session.Message{
 		{RoundNumber: 0, Role: "user", Content: "paper excerpt pseudo message", TokenCount: 5},
-		{RoundNumber: 1, Role: "user", Content: "real question", Digest: "真实问题", TokenCount: 5},
+		{RoundNumber: 1, Role: "user", Content: "真实问题", TokenCount: 5},
 		{RoundNumber: 1, Role: "assistant", Content: "answer", TokenCount: 5},
 	}
 	m.LoadPaper(p)

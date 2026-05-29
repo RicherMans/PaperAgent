@@ -79,7 +79,7 @@ ui:
 
 - `heavy.txt` — 初始深度摘要的 system prompt
 - `light.txt` — 问答阶段的 system prompt
-- `digest.txt` — 每轮对话摘要的 system prompt
+- `summarize.txt` — 对话元总结的 system prompt
 
 ## 使用
 

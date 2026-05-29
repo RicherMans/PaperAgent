@@ -458,10 +458,6 @@ func (m *Model) renderMessage(msg session.Message) string {
 		b.WriteString(" ")
 		b.WriteString(msg.Content)
 		b.WriteString("\n")
-		if msg.Digest != "" {
-			b.WriteString(dimStyle.Render("   摘要: " + msg.Digest))
-			b.WriteString("\n")
-		}
 		b.WriteString(dimStyle.Render(fmt.Sprintf("   [Tokens: ~%d]", msg.TokenCount)))
 	} else {
 		header := aiStyle.Render("🤖 AI:")

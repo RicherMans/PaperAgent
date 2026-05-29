@@ -77,3 +77,12 @@ export function useUpdateTitle() {
     },
   })
 }
+
+export function useSummarizeExport() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJSON<{ status: string; path: string }>(`${BASE}/papers/${id}/summarize-export`, {
+        method: 'POST',
+      }),
+  })
+}

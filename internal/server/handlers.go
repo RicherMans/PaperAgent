@@ -47,7 +47,6 @@ type messageResponse struct {
 	RoundNumber int    `json:"round_number"`
 	Role        string `json:"role"`
 	Content     string `json:"content"`
-	Digest      string `json:"digest,omitempty"`
 	TokenCount  int    `json:"token_count"`
 }
 
@@ -354,25 +353,6 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	paper.AddMessage(assistantMsg)
 	paper.Save()
 	unlock()
-
-	// Generate digest async — reload paper inside goroutine by ref
-	go func(paperRef string, question string, round int) {
-		digest, err := s.api.SummarizeQuestion(s.cfg.API.LightModel, question)
-		if err == nil && digest != "" {
-			p, loadErr := session.LoadPaperByRef(paperRef)
-			if loadErr != nil {
-				log.Printf("[chat] reload paper for digest: %v", loadErr)
-				return
-			}
-			for i := range p.Messages {
-				if p.Messages[i].Role == "user" && p.Messages[i].RoundNumber == round {
-					p.Messages[i].Digest = digest
-					break
-				}
-			}
-			p.Save()
-		}
-	}(paper.Ref(), req.Question, round)
 
 	sw.WriteDone(paper.Ref())
 }
@@ -756,6 +736,124 @@ func (s *Server) handleSavePrompts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 
+// handleSummarize generates a meta-summary of the entire conversation via SSE.
+func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+
+	// Build context
+	var context strings.Builder
+	if paper.InitialSummary != "" {
+		context.WriteString("## 初始总结\n\n")
+		context.WriteString(paper.InitialSummary)
+		context.WriteString("\n\n")
+	}
+	context.WriteString("## 对话历史\n\n")
+	for _, msg := range paper.Messages {
+		if msg.Role == "user" {
+			context.WriteString(fmt.Sprintf("Q: %s\n", msg.Content))
+		} else {
+			context.WriteString(fmt.Sprintf("A: %s\n", msg.Content))
+		}
+	}
+
+	sw, err := newSSEWriter(w)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+		return
+	}
+
+	messages := []api.ChatMessage{
+		{Role: "system", Content: prompt.GetSummarize()},
+		{Role: "user", Content: context.String()},
+	}
+
+	ch := s.api.ChatStream(s.cfg.API.DefaultModel, messages)
+	for chunk := range ch {
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+		}
+
+		if chunk.Err != nil {
+			sw.WriteError(chunk.Err.Error())
+			return
+		}
+		if chunk.Done {
+			break
+		}
+		if err := sw.WriteChunk(chunk.Content); err != nil {
+			return
+		}
+	}
+
+	sw.WriteDone(paper.Ref())
+}
+
+// handleSummarizeExport summarizes the conversation and exports the result to Obsidian.
+func (s *Server) handleSummarizeExport(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+
+	// Build context for summarize
+	var context strings.Builder
+	if paper.InitialSummary != "" {
+		context.WriteString("## 初始总结\n\n")
+		context.WriteString(paper.InitialSummary)
+		context.WriteString("\n\n")
+	}
+	context.WriteString("## 对话历史\n\n")
+	for _, msg := range paper.Messages {
+		if msg.Role == "user" {
+			context.WriteString(fmt.Sprintf("Q: %s\n", msg.Content))
+		} else {
+			context.WriteString(fmt.Sprintf("A: %s\n", msg.Content))
+		}
+	}
+
+	messages := []api.ChatMessage{
+		{Role: "system", Content: prompt.GetSummarize()},
+		{Role: "user", Content: context.String()},
+	}
+
+	result, _, err := s.api.Chat(s.cfg.API.DefaultModel, messages)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "summarize failed: " + err.Error()})
+		return
+	}
+
+	// Create a paper-like object with the summary for export
+	exportPaper := &session.Paper{
+		SessionID:      paper.SessionID,
+		Title:          paper.Title,
+		SourceURL:      paper.SourceURL,
+		InitialSummary: result,
+		ModelUsed:      paper.ModelUsed,
+	}
+
+	exportPath, err := export.ExportToObsidian(s.cfg, exportPaper)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "export failed: " + err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "exported",
+		"path":   exportPath,
+	})
+}
+
 // --- Helpers ---
 
 func (s *Server) fetchPaperContent(req newPaperRequest) (content string, sourceURL string, err error) {
@@ -796,7 +894,6 @@ func paperToResponse(p *session.Paper) paperResponse {
 			RoundNumber: m.RoundNumber,
 			Role:        m.Role,
 			Content:     m.Content,
-			Digest:      m.Digest,
 			TokenCount:  m.TokenCount,
 		})
 	}

@@ -410,19 +410,6 @@ func (m *Model) handleStreamMsg(msg streamMsg) (tea.Model, tea.Cmd) {
 				TokenCount:  session.EstimateTokens(m.streamContent),
 			})
 			m.manager.Save()
-			// Generate digest async
-			go func() {
-				p := m.manager.Paper()
-				if p == nil || len(p.Messages) < 2 {
-					return
-				}
-				userMsg := p.Messages[len(p.Messages)-2]
-				digest, _ := m.apiClient.SummarizeQuestion(m.cfg.API.LightModel, userMsg.Content)
-				if digest != "" {
-					p.Messages[len(p.Messages)-2].Digest = digest
-					m.manager.Save()
-				}
-			}()
 		}
 		m.refreshViewportContent(false)
 		return m, nil
@@ -520,6 +507,9 @@ func (m *Model) handleCommand(input string) (tea.Model, tea.Cmd) {
 
 	case "/summarize":
 		return m.handleSummarize()
+
+	case "/summarize-export":
+		return m.handleSummarizeExport()
 
 	case "/export":
 		return m.handleExport()
@@ -625,7 +615,7 @@ func (m *Model) handleSummarize() (tea.Model, tea.Cmd) {
 	m.streamContent = ""
 
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetDigest()},
+		{Role: "system", Content: prompt.GetSummarize()},
 		{Role: "user", Content: context.String()},
 	}
 
@@ -652,6 +642,61 @@ func (m *Model) handleExport() (tea.Model, tea.Cmd) {
 	}
 
 	m.statusNotice = fmt.Sprintf("导出成功: %s", path)
+	m.mode = ModeInput
+	m.textarea.Focus()
+	return m, textarea.Blink
+}
+
+func (m *Model) handleSummarizeExport() (tea.Model, tea.Cmd) {
+	p := m.manager.Paper()
+	if p == nil {
+		m.statusNotice = "没有加载的论文，无法导出"
+		return m, nil
+	}
+
+	// Build context for summarize
+	var context strings.Builder
+	if p.InitialSummary != "" {
+		context.WriteString("## 初始总结\n\n")
+		context.WriteString(p.InitialSummary)
+		context.WriteString("\n\n")
+	}
+	context.WriteString("## 对话历史\n\n")
+	for _, msg := range p.Messages {
+		if msg.Role == "user" {
+			context.WriteString(fmt.Sprintf("Q: %s\n", msg.Content))
+		} else {
+			context.WriteString(fmt.Sprintf("A: %s\n", msg.Content))
+		}
+	}
+
+	messages := []api.ChatMessage{
+		{Role: "system", Content: prompt.GetSummarize()},
+		{Role: "user", Content: context.String()},
+	}
+
+	result, _, err := m.apiClient.Chat(m.cfg.API.DefaultModel, messages)
+	if err != nil {
+		m.statusNotice = fmt.Sprintf("总结生成失败: %v", err)
+		return m, nil
+	}
+
+	// Create a paper-like object with the summary for export
+	exportPaper := &session.Paper{
+		SessionID:      p.SessionID,
+		Title:          p.Title,
+		SourceURL:      p.SourceURL,
+		InitialSummary: result,
+		ModelUsed:      p.ModelUsed,
+	}
+
+	path, err := exportPkg.ExportToObsidian(m.cfg, exportPaper)
+	if err != nil {
+		m.statusNotice = fmt.Sprintf("导出失败: %v", err)
+		return m, nil
+	}
+
+	m.statusNotice = fmt.Sprintf("总结已导出: %s", path)
 	m.mode = ModeInput
 	m.textarea.Focus()
 	return m, textarea.Blink
@@ -811,15 +856,12 @@ func (m *Model) buildRoundItems() []roundListItem {
 			continue
 		}
 		seen[msg.RoundNumber] = true
-		title := msg.Digest
-		if title == "" {
-			title = firstLine(msg.Content)
-			if len([]rune(title)) > 80 {
-				r := []rune(title)
-				title = string(r[:80]) + "..."
-			}
+		title := firstLine(msg.Content)
+		if len([]rune(title)) > 80 {
+			r := []rune(title)
+			title = string(r[:80]) + "..."
 		}
-		items = append(items, roundListItem{Round: msg.RoundNumber, Display: len(items) + 1, Title: title, Digest: msg.Digest})
+		items = append(items, roundListItem{Round: msg.RoundNumber, Display: len(items) + 1, Title: title})
 	}
 	return items
 }

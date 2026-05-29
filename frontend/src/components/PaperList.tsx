@@ -1,6 +1,6 @@
-import { Plus, Trash2, MoreHorizontal, Download, Pencil, ArrowUp, ArrowDown, Settings } from 'lucide-react'
+import { Plus, Trash2, MoreHorizontal, Download, Pencil, ArrowUp, ArrowDown, Settings, ScrollText } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle, useUpdateRating } from '../hooks/usePapers'
+import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle, useUpdateRating, useSummarizeExport } from '../hooks/usePapers'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
 import type { PaperSummary } from '../types'
@@ -65,8 +65,10 @@ export function PaperList() {
   const exportPaper = useExportPaper()
   const updateTitle = useUpdateTitle()
   const updateRating = useUpdateRating()
+  const summarizeExport = useSummarizeExport()
   const { currentPaperId, setCurrentPaperId, setNewPaperOpen, setSettingsOpen, sidebarWidth, setSidebarWidth } = useAppStore()
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const editInputRef = useRef<HTMLInputElement>(null)
@@ -118,20 +120,32 @@ export function PaperList() {
 
   // Close menu on outside click
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menuOpen && !contextMenu) return
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
-      const menuEl = document.querySelector(`[data-menu-id="${menuOpen}"]`)
-      if (menuEl && !menuEl.contains(target)) {
-        setMenuOpen(null)
+      if (menuOpen) {
+        const menuEl = document.querySelector(`[data-menu-id="${menuOpen}"]`)
+        if (menuEl && !menuEl.contains(target)) {
+          setMenuOpen(null)
+        }
+      }
+      if (contextMenu) {
+        const ctxEl = document.querySelector(`[data-ctx-menu-id="${contextMenu.id}"]`)
+        if (ctxEl && !ctxEl.contains(target)) {
+          setContextMenu(null)
+        }
       }
     }
-    const id = requestAnimationFrame(() => document.addEventListener('mousedown', handler))
+    const id = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handler)
+      document.addEventListener('scroll', handler as EventListener, true)
+    })
     return () => {
       cancelAnimationFrame(id)
       document.removeEventListener('mousedown', handler)
+      document.removeEventListener('scroll', handler as EventListener, true)
     }
-  }, [menuOpen])
+  }, [menuOpen, contextMenu])
 
   const handleDelete = async (id: string) => {
     try {
@@ -142,6 +156,14 @@ export function PaperList() {
       toast.error('删除失败')
     }
     setMenuOpen(null)
+    setContextMenu(null)
+  }
+
+  const handleContextMenu = (e: React.MouseEvent, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenuOpen(null)
+    setContextMenu({ id, x: e.clientX, y: e.clientY })
   }
 
   const handleExport = async (id: string) => {
@@ -152,6 +174,18 @@ export function PaperList() {
       toast.error(err instanceof Error ? err.message : '导出失败')
     }
     setMenuOpen(null)
+    setContextMenu(null)
+  }
+
+  const handleSummarizeExport = async (id: string) => {
+    try {
+      const result = await summarizeExport.mutateAsync(id)
+      toast.success(`总结已导出到 ${result.path}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '总结导出失败')
+    }
+    setMenuOpen(null)
+    setContextMenu(null)
   }
 
   const handleEditTitle = (id: string, currentTitle: string) => {
@@ -343,6 +377,7 @@ export function PaperList() {
                 : '2px solid transparent',
               zIndex: menuOpen === p.id ? 30 : 'auto',
             }}
+            onContextMenu={(e) => handleContextMenu(e, p.id)}
           >
             <div
               role="button"
@@ -443,6 +478,14 @@ export function PaperList() {
                     <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> 导出
                   </button>
                   <button
+                    onClick={(e) => { e.stopPropagation(); handleSummarizeExport(p.id) }}
+                    className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-elevated)] flex items-center gap-1.5 transition-colors duration-100"
+                    style={{ color: 'var(--color-text)' }}
+                    role="menuitem"
+                  >
+                    <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> 总结导出
+                  </button>
+                  <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}
                     className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-danger-subtle)] flex items-center gap-1.5 transition-colors duration-100"
                     style={{ color: 'var(--color-danger)' }}
@@ -456,6 +499,60 @@ export function PaperList() {
           </div>
         ))}
       </div>
+
+      {/* Right-click context menu */}
+      {contextMenu && (() => {
+        const p = papers?.find(pp => pp.id === contextMenu.id)
+        if (!p) return null
+        return (
+          <div
+            data-ctx-menu-id={contextMenu.id}
+            className="fixed rounded-lg shadow-lg py-1 z-[100] animate-scale-in"
+            style={{
+              left: contextMenu.x,
+              top: contextMenu.y,
+              backgroundColor: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-lg)',
+              minWidth: 128,
+            }}
+            role="menu"
+          >
+            <button
+              onClick={() => { handleEditTitle(p.id, p.title) }}
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-elevated)] flex items-center gap-1.5 transition-colors duration-100"
+              style={{ color: 'var(--color-text)' }}
+              role="menuitem"
+            >
+              <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} /> 编辑标题
+            </button>
+            <button
+              onClick={() => { handleExport(p.id) }}
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-elevated)] flex items-center gap-1.5 transition-colors duration-100"
+              style={{ color: 'var(--color-text)' }}
+              role="menuitem"
+            >
+              <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> 导出
+            </button>
+            <button
+              onClick={() => { handleSummarizeExport(p.id) }}
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-elevated)] flex items-center gap-1.5 transition-colors duration-100"
+              style={{ color: 'var(--color-text)' }}
+              role="menuitem"
+            >
+              <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> 总结导出
+            </button>
+            <button
+              onClick={() => { handleDelete(p.id) }}
+              className="w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-danger-subtle)] flex items-center gap-1.5 transition-colors duration-100"
+              style={{ color: 'var(--color-danger)' }}
+              role="menuitem"
+            >
+              <Trash2 size={12} /> 删除
+            </button>
+          </div>
+        )
+      })()}
 
       {/* Resize handle */}
       <div

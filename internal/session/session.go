@@ -22,7 +22,6 @@ type Message struct {
 	RoundNumber int       `json:"round_number"`
 	Role        string    `json:"role"`
 	Content     string    `json:"content"`
-	Digest      string    `json:"digest,omitempty"`
 	TokenCount  int       `json:"token_count"`
 	CreatedAt   time.Time `json:"created_at"`
 }

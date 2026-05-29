@@ -4,7 +4,6 @@ export interface Message {
   round_number: number
   role: 'user' | 'assistant'
   content: string
-  digest?: string
   token_count: number
 }
 
@@ -30,12 +29,11 @@ export interface PaperSummary {
 // ---- SSE Event Types ----
 
 export interface SSEEvent {
-  type: 'chunk' | 'done' | 'error' | 'title' | 'digest' | 'created'
+  type: 'chunk' | 'done' | 'error' | 'title' | 'created'
   content?: string
   error?: string
   paper_id?: string
   title?: string
-  digest?: string
   round_id?: number
 }
 

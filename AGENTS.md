@@ -39,16 +39,16 @@ go vet ./...
 ### Two-phase state machine
 
 - **INIT phase**: Paper content + `heavy.txt` prompt sent to API. Streams a detailed Markdown summary to the viewport. Title extracted async via light model.
-- **CHAT phase**: Each question sends paper content + `light.txt` prompt + last 5 rounds. After each answer, a one-sentence digest is generated async (for UI navigation in `/list` view).
+- **CHAT phase**: Each question sends paper content + `light.txt` prompt + last 5 rounds.
 
 ### Module layout (`internal/`)
 
 | Package | Responsibility |
 |---|---|
 | `config/` | `~/.paperpaper/config.yaml` loading, env var overrides, path helpers |
-| `api/` | OpenAI-compatible HTTP client. `ChatStream()` returns `<-chan StreamChunk` via SSE goroutine. `SummarizeQuestion()` and `ExtractTitle()` are async helpers using light model. |
+| `api/` | OpenAI-compatible HTTP client. `ChatStream()` returns `<-chan StreamChunk` via SSE goroutine. `ExtractTitle()` is an async helper using light model. |
 | `session/` | `Paper` and `Message` data models. Thread-safe `Manager` (mutex-protected) for CRUD + persistence to `~/.paperpaper/papers/{id}.json`. Uses UUID-based session IDs. |
-| `prompt/` | `//go:embed` templates (`heavy.txt`, `light.txt`, `digest.txt`). `Get(name, fallback)` checks user override at `~/.paperpaper/prompts/{name}.txt` first. |
+| `prompt/` | `//go:embed` templates (`heavy.txt`, `light.txt`, `summarize.txt`). `Get(name, fallback)` checks user override at `~/.paperpaper/prompts/{name}.txt` first. |
 | `tui/` | Bubble Tea Elm architecture. `model.go` (state), `update.go` (commands & events), `view.go` (rendering), `selection.go` (mouse text selection). Three modes: Normal, Input, List. |
 | `urlparse/` | `FetchURL()` tries external `arxiv2text` binary first, falls back to HTTP GET. Supports arxiv URL normalization and PDF download. `LoadFile()` reads with `~` expansion. |
 | `export/` | `ExportToObsidian()` writes Markdown with YAML frontmatter to Obsidian vault. Customizable template at `~/.paperpaper/prompts/export.md`. |
@@ -59,7 +59,7 @@ go vet ./...
 2. `session.NewPaper()` creates paper object
 3. INIT: full paper + HEAVY_PROMPT → streamed summary
 4. CHAT: each question → paper + LIGHT_PROMPT + last 5 rounds → streamed answer
-5. Async: title extraction + per-question digests via light model
+5. Async: title extraction via light model
 6. All persisted as JSON in `~/.paperpaper/papers/`
 
 ### Entry point
@@ -71,7 +71,7 @@ go vet ./...
 - **Terminal title**: Shows paper title or URL in terminal tab while app is running
 - **Mouse selection**: Text can be selected with mouse for copying
 - **Export feedback**: `/export` shows status bar message instead of replacing conversation view
-- **Question digests**: Light model generates compact topic labels for Q&A round navigation
+- **Round navigation**: `/list` shows first line of each user question truncated to 80 chars
 
 ## Key Commands (in-app)
 

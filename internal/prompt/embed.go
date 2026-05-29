@@ -14,8 +14,9 @@ var HeavyPrompt string
 //go:embed prompts/light.txt
 var LightPrompt string
 
-//go:embed prompts/digest.txt
-var DigestPrompt string
+
+//go:embed prompts/summarize.txt
+var SummarizePrompt string
 
 // Get returns the prompt, checking user override first.
 func Get(name string, fallback string) string {
@@ -27,10 +28,9 @@ func Get(name string, fallback string) string {
 	return fallback
 }
 
-func GetHeavy() string  { return Get("heavy", HeavyPrompt) }
-func GetLight() string  { return Get("light", LightPrompt) }
-func GetDigest() string { return Get("digest", DigestPrompt) }
-
+func GetHeavy() string     { return Get("heavy", HeavyPrompt) }
+func GetLight() string     { return Get("light", LightPrompt) }
+func GetSummarize() string { return Get("summarize", SummarizePrompt) }
 // GetContent returns the effective prompt content for a given name.
 // Uses user override if it exists, otherwise returns the built-in default.
 func GetContent(name string) string {
@@ -39,15 +39,15 @@ func GetContent(name string) string {
 		return GetHeavy()
 	case "light":
 		return GetLight()
-	case "digest":
-		return GetDigest()
+	case "summarize":
+		return GetSummarize()
 	}
 	return ""
 }
 
 // BuiltinNames returns the list of built-in prompt names.
 func BuiltinNames() []string {
-	return []string{"heavy", "light", "digest"}
+	return []string{"heavy", "light", "summarize"}
 }
 
 // Save writes a user override prompt to disk.

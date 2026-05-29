@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/paperpaper/paperpaper/internal/config"
-	"github.com/paperpaper/paperpaper/internal/prompt"
 	"github.com/paperpaper/paperpaper/internal/session"
 )
 
@@ -199,15 +198,6 @@ func (c *Client) Chat(model string, messages []ChatMessage) (string, int, error)
 	}
 
 	return chatResp.Choices[0].Message.Content, tokens, nil
-}
-
-func (c *Client) SummarizeQuestion(model string, question string) (string, error) {
-	messages := []ChatMessage{
-		{Role: "system", Content: prompt.GetDigest()},
-		{Role: "user", Content: question},
-	}
-	result, _, err := c.Chat(model, messages)
-	return result, err
 }
 
 func (c *Client) ExtractTitle(model string, content string) (string, error) {

@@ -41,7 +41,6 @@ type roundListItem struct {
 	Round   int
 	Display int
 	Title   string
-	Digest  string
 }
 
 type Phase int
@@ -73,11 +72,6 @@ type summarizeDoneMsg struct {
 
 type titleDoneMsg struct {
 	title string
-}
-
-type digestDoneMsg struct {
-	digest  string
-	roundID int
 }
 
 type thinkingTickMsg struct{}
@@ -416,7 +410,8 @@ var commands = []commandInfo{
 	{Name: "/edit", Usage: "/edit", Description: "编辑最近一次问题"},
 	{Name: "/del", Usage: "/del <round>", Description: "删除指定问答轮次"},
 	{Name: "/summarize", Usage: "/summarize", Description: "对当前对话生成元总结"},
-	{Name: "/export", Usage: "/export", Description: "导出到 Obsidian"},
+	{Name: "/summarize-export", Usage: "/summarize-export", Description: "生成元总结并导出到 Obsidian"},
+	{Name: "/export", Usage: "/export", Description: "导出完整对话到 Obsidian"},
 	{Name: "/model", Usage: "/model [name]", Description: "查看或切换模型"},
 	{Name: "/config", Usage: "/config", Description: "查看当前配置"},
 	{Name: "/raw", Usage: "/raw", Description: "切换原始输出模式（不渲染 Markdown/LaTeX）"},

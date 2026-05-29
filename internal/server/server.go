@@ -55,6 +55,8 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("POST /api/papers/{id}/chat", s.handleChat)
 	mux.HandleFunc("DELETE /api/papers/{id}/rounds/{n}", s.handleDeleteRound)
 	mux.HandleFunc("POST /api/papers/{id}/export", s.handleExport)
+	mux.HandleFunc("POST /api/papers/{id}/summarize", s.handleSummarize)
+	mux.HandleFunc("POST /api/papers/{id}/summarize-export", s.handleSummarizeExport)
 	mux.HandleFunc("POST /api/papers/{id}/retry-summary", s.handleRetrySummary)
 	mux.HandleFunc("POST /api/papers/{id}/chat/{round}/retry", s.handleRetryChat)
 	mux.HandleFunc("GET /api/config", s.handleGetConfig)

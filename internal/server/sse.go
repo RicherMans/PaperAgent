@@ -12,7 +12,6 @@ const (
 	SSEEventDone     = "done"
 	SSEEventError    = "error"
 	SSEEventTitle    = "title"
-	SSEEventDigest   = "digest"
 	SSEEventCreated  = "created"
 )
 
@@ -22,7 +21,6 @@ type SSEEvent struct {
 	Error    string `json:"error,omitempty"`
 	PaperID  string `json:"paper_id,omitempty"`
 	Title    string `json:"title,omitempty"`
-	Digest   string `json:"digest,omitempty"`
 	RoundID  int    `json:"round_id,omitempty"`
 }
 

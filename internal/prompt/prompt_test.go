@@ -14,8 +14,8 @@ func TestEmbeddedPrompts(t *testing.T) {
 	if LightPrompt == "" {
 		t.Error("LightPrompt should not be empty")
 	}
-	if DigestPrompt == "" {
-		t.Error("DigestPrompt should not be empty")
+	if SummarizePrompt == "" {
+		t.Error("SummarizePrompt should not be empty")
 	}
 }
 
@@ -41,14 +41,14 @@ func TestGetLight(t *testing.T) {
 	}
 }
 
-func TestGetDigest(t *testing.T) {
+func TestGetSummarize(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	result := GetDigest()
+	result := GetSummarize()
 	if result == "" {
-		t.Error("GetDigest should not return empty")
+		t.Error("GetSummarize should not return empty")
 	}
-	if !strings.Contains(result, "一句话") {
-		t.Error("DigestPrompt should contain '一句话'")
+	if !strings.Contains(result, "总结") {
+		t.Error("SummarizePrompt should contain '总结'")
 	}
 }
 
