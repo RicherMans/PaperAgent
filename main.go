@@ -92,8 +92,10 @@ func runSystray(cfg *config.Config) {
 		}
 	}()
 
-	// Auto-open browser
-	go openBrowser(url)
+	// Auto-open browser (skip when PAPER_NO_BROWSER is set, e.g. in dev mode)
+	if os.Getenv("PAPER_NO_BROWSER") == "" {
+		go openBrowser(url)
+	}
 
 	// Run systray (blocks until user quits)
 	systray.Run(systray.Options{Port: actualPort}, httpServer)

@@ -14,9 +14,9 @@ default:
 # 前后端日志合并到一个终端，Go=青色，Vite=绿色
 # Ctrl+C 同时退出两个服务。浏览器访问 http://localhost:5173
 dev: install build-go
-    npx concurrently -n Go,Vite -c cyan,green \
+    PAPER_NO_BROWSER=1 npx concurrently -n Go,Vite -c cyan,green \
         "GOCACHE={{gocache}} ./{{bin}}" \
-        "cd frontend && npm run dev"
+        "cd frontend && npm run dev -- --open"
 
 # ---- 构建 ----
 

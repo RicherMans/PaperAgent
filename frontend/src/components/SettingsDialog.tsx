@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Loader2, Save } from 'lucide-react'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
@@ -27,6 +27,23 @@ const promptLabels: Record<string, string> = {
 export function SettingsDialog() {
   const { isSettingsOpen, setSettingsOpen } = useAppStore()
   const [tab, setTab] = useState<Tab>('config')
+  const [visible, setVisible] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  // Animate in/out
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setVisible(true)
+      setClosing(false)
+    } else if (visible && !closing) {
+      setClosing(true)
+      timerRef.current = setTimeout(() => setVisible(false), 200)
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [isSettingsOpen, visible, closing])
+
+  const close = () => setSettingsOpen(false)
 
   // Config
   const [config, setConfig] = useState<ConfigData | null>(null)
@@ -44,7 +61,7 @@ export function SettingsDialog() {
   // Close on Escape key
   useEffect(() => {
     if (!isSettingsOpen) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [isSettingsOpen, setSettingsOpen])
@@ -75,7 +92,7 @@ export function SettingsDialog() {
       .finally(() => setPromptsLoading(false))
   }, [isSettingsOpen])
 
-  if (!isSettingsOpen) return null
+  if (!visible) return null
 
   const handleSaveConfig = async () => {
     setSaving(true)
@@ -118,11 +135,14 @@ export function SettingsDialog() {
   const tabClass = (t: Tab) => `flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors ${tab === t ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false) }}>
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`}
+      onClick={(e) => { if (e.target === e.currentTarget) close() }}
+    >
+      <div className={`bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col ${closing ? 'animate-scale-out' : 'animate-scale-in'}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-sm font-semibold">⚙️ 设置</h2>
-          <button onClick={() => setSettingsOpen(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><X size={16} /></button>
+          <button onClick={() => close()} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><X size={16} /></button>
         </div>
 
         <div className="flex gap-1 px-4 py-2 bg-gray-100 dark:bg-gray-800">
@@ -177,7 +197,7 @@ export function SettingsDialog() {
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800 flex justify-between gap-2">
             <p className="text-xs text-gray-400 self-center">{tab === 'prompts' ? '提示词保存后立即生效' : '配置保存在 ~/.paperagent/config.yaml'}</p>
             <div className="flex gap-2">
-              <button onClick={() => setSettingsOpen(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">关闭</button>
+              <button onClick={() => close()} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">关闭</button>
               <button onClick={tab === 'prompts' ? handleSavePrompts : handleSaveConfig} disabled={tab === 'prompts' ? promptsSaving : saving} className="px-4 py-2 text-sm rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white flex items-center gap-1.5">
                 {(tab === 'prompts' ? promptsSaving : saving) && <Loader2 size={14} className="animate-spin" />}<Save size={14} />保存
               </button>
