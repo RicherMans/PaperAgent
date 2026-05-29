@@ -1,20 +1,49 @@
-# PaperPaper
+# PaperPaper 📄
 
-终端论文阅读 AI 助手。粘贴论文，AI 生成详实总结，随后进入多轮问答。
+**给你的论文装上 AI 大脑 —— 粘贴链接，深度解析，多轮追问。**
+
+PaperPaper 是一个 AI 论文阅读助手。给它一篇论文（arXiv 链接、文件或粘贴），AI 生成详实、可复现级别的深度解析，随后进入多轮问答模式。所有对话持久化到本地，随时可以恢复。
+
+**默认启动为 Web UI 模式**（浏览器自动打开），添加 `--tui` 参数进入终端模式。
+
+## Why
+
+市面上已有不少 AI 能帮你「读」论文 —— Gemini、Claude 都有超长上下文，丢一篇 PDF 进去也能总结。但实际用下来有几个痛点：
+
+**痛点一：PDF 解析本身就是个坑。**
+
+直接从 PDF 提取文本，公式乱码、表格错位、双栏混排 —— 你花在修解析结果上的时间比读论文还多。我们的做法是：你只需要给一个 **arXiv 链接**，我们直接从 HTML/TeX 源抓取内容，自动转成干净的 Markdown，并**去除 References 等无关章节**。省去了解析 PDF 的一切烦恼。
+
+**痛点二：超长上下文 ≠ 超准。**
+
+Gemini 有 1M token 上下文，听起来很美好。但论文全文本身就有几千到上万 token，再加上反复多轮问答，上下文窗口会迅速膨胀。几十轮下来，模型要在一片汪洋中找答案，准确性断崖式下降，对话历史中的噪声逐渐「淹没」论文细节，漂移和幻觉随之而来。
+
+**我们的解法：只保留论文原文 + 最近 N 轮问答。**
+
+观察一个朴素的规律：你对一篇论文的追问往往是「发散式」的 —— 这轮在问实验设计，下轮跳到数学推导，再下轮可能回头看结论。**多轮之前的问题和回答，对当前提问几乎没有参考价值。**
+
+所以我们只把两样东西放进上下文：
+
+1. **论文全文（始终保留）** —— AI 回答的锚点，永不丢失。
+2. **最近 N 轮问答（默认 5 轮）** —— 维持对话连贯性，同时不让历史变成噪声。
+
+初始生成的深度摘要则**不进入**后续对话上下文，避免占用宝贵的窗口。
+
+这样每轮问答的上下文窗口都保持干净、聚焦，模型始终「记得」论文本身，而不被聊天记录带偏。
 
 ## 安装
 
-```bash
-go install github.com/happyTonakai/paper-paper@latest
-```
-
-或从源码构建：
+### 从源码构建
 
 ```bash
 git clone https://github.com/happyTonakai/paper-paper.git
 cd paperpaper
-go build -o paperpaper .
+just build
 ```
+
+构建产物是一个单二进制，内嵌前端静态资源（React SPA），运行时无需安装 Node.js。
+
+构建前需要安装 Go 1.25+ 和 Node.js（仅构建时需要，运行时不需）。
 
 ## 配置
 
@@ -24,15 +53,14 @@ go build -o paperpaper .
 
 ```bash
 export OPENAI_API_KEY="sk-..."
-export OPENAI_BASE_URL="https://api.openai.com/v1"   # 可选
+export OPENAI_BASE_URL="https://api.openai.com/v1"   # 可选，兼容任意 OpenAI 接口
 export OPENAI_MODEL_NAME="gpt-4o"                     # 可选
+export PAPER_ADDR=":8686"                             # 可选，Web UI 监听地址
 ```
 
-### 2. 配置文件
+### 2. 配置文件 `~/.paperpaper/config.yaml`
 
-```bash
-mkdir -p ~/.paperpaper
-cat > ~/.paperpaper/config.yaml << 'EOF'
+```yaml
 api:
   base_url: "https://api.openai.com/v1"
   api_key: "${OPENAI_API_KEY}"
@@ -43,79 +71,152 @@ obsidian:
   export_folder: "Papers"
 ui:
   max_recent_rounds: 5
-EOF
 ```
 
 ### 3. 自定义 Prompt
 
-在 `~/.paperpaper/prompts/` 下放置文件覆盖默认 prompt：
+在 `~/.paperpaper/prompts/` 下放置同名文件覆盖内置 prompt：
 
-- `heavy.txt` — 初始总结指令
-- `light.txt` — 问答指令
-- `digest.txt` — 对话元总结指令
+- `heavy.txt` — 初始深度摘要的 system prompt
+- `light.txt` — 问答阶段的 system prompt
+- `digest.txt` — 每轮对话摘要的 system prompt
 
 ## 使用
 
+### 启动
+
 ```bash
-# 从文件加载
-paperpaper ./paper.txt
-
-# 从 URL 加载
-paperpaper https://arxiv.org/abs/2301.00001
-
-# 直接启动，粘贴论文内容
+# Web UI 模式（默认）：浏览器自动打开，端口被占用时自动 +1
 paperpaper
+
+# 终端 TUI 模式
+paperpaper --tui
+
+# 开发模式：Go 后端 + Vite HMR 前端，浏览器访问 http://localhost:5173
+just dev
+
+# 也可指定监听地址
+PAPER_ADDR=":9000" paperpaper
 ```
 
-## 快捷键
+### Web UI 操作
 
-| 按键 | 功能 |
+| 操作 | 方式 |
 |---|---|
-| `i` | 进入输入模式 |
-| `Esc` | 返回浏览模式 |
-| `j` / `k` | 上下滚动 |
-| `Ctrl+D` | 发送 / 半页下滚 |
-| `Alt+Enter` | 发送 |
-| `q` | 浏览模式退出 |
-| `Ctrl+C` x2 | 连按两次退出 |
+| 新建论文 | 点击左侧"+"按钮，输入 arXiv URL |
+| 选择论文 | 点击左侧论文列表 |
+| 提问 | 底部输入框输入问题，Enter 发送 |
+| 换行 | Shift+Enter |
+| 命令 | 输入 `/` 触发命令补全 |
+| `/export` | 导出当前论文到 Obsidian |
+| `/config` | 打开设置（主题切换） |
+| `/help` | 显示帮助 |
 
-## 命令
-
-| 命令 | 功能 |
-|---|---|
-| `/new [arxiv/url/path]` | 新建会话 |
-| `/resume` | 恢复历史会话（j/k 选择，Enter 打开，d 删除） |
-| `/list` | 当前论文问答轮次列表（Enter 快速跳转） |
-| `/open <session-id>` | 加载历史会话 |
-| `/delete` | 删除当前会话 |
-| `/edit` | 编辑最近问题并重新生成 |
-| `/del <round>` | 删除指定轮次 |
-| `/summarize` | 对话元总结 |
-| `/export` | 导出到 Obsidian |
-| `/model [name]` | 切换模型 |
-| `/config` | 查看配置 |
-| `/help` | 帮助 |
-| `/quit` | 退出 |
+> **注意**：当前 Web UI 主要通过 URL（arXiv）来加载论文。终端模式 (`paperpaper --tui`) 仍支持文件路径和标准输入粘贴。
 
 ## 架构
 
 ```
-[System Prompt] → [论文全文] → [最近 5 轮对话] → [当前提问]
+┌────────────────────────────────────────────────────┐
+│                  浏览器 (React SPA)                  │
+│  PaperList │ ChatView │ InputBox │ NewPaperDialog  │
+│  ───────────────────────────────────────────────── │
+│  Zustand (状态管理) │ TanStack Query (数据请求)    │
+│  react-markdown │ KaTeX │ rehype-highlight        │
+└──────────────────┬─────────────────────────────────┘
+                   │ HTTP (JSON / SSE)
+┌──────────────────▼─────────────────────────────────┐
+│              Go HTTP 服务器 (:8686)                  │
+│  ┌─────────────┐ ┌──────────┐ ┌──────────────────┐ │
+│  │ REST API    │ │ SSE      │ │ 静态资源 (embed) │ │
+│  │ /api/papers │ │ /chat    │ │ React SPA        │ │
+│  │ /api/config │ │ /retry   │ │ 内嵌在二进制中   │ │
+│  └──────┬──────┘ └──────────┘ └──────────────────┘ │
+└─────────┼──────────────────────────────────────────┘
+          │
+┌─────────▼──────────────────────────────────────────┐
+│             内部模块                                 │
+│  ┌──────────┐ ┌──────────┐ ┌────────────────────┐ │
+│  │ session  │ │ api      │ │ prompt             │ │
+│  │ 持久化   │ │ 流式调用 │ │ 模板 (//go:embed)  │ │
+│  │ JSON文件 │ │ OpenAI   │ │ + 用户覆盖         │ │
+│  └──────────┘ └──────────┘ └────────────────────┘ │
+│  ┌──────────┐ ┌──────────┐ ┌────────────────────┐ │
+│  │ urlparse │ │ export   │ │ config             │ │
+│  │ 加载论文 │ │ Obsidian │ │ 三层叠加配置       │ │
+│  └──────────┘ └──────────┘ └────────────────────┘ │
+└────────────────────────────────────────────────────┘
 ```
 
-- **INIT 阶段**：论文全文 → 详实总结（不进入后续上下文）
-- **CHAT 阶段**：论文全文 + 最近 5 轮 → 回答问题
-- 每轮异步生成 per-question 摘要（仅 UI 展示）
+### 核心设计：两阶段状态机
 
-## 测试
+**INIT 阶段**：论文全文 + `heavy.txt` prompt → 流式生成深度 Markdown 摘要。同时异步用轻量模型提取论文标题。
+
+**CHAT 阶段**：每次提问 = 论文全文 + `light.txt` prompt + 最近 N 轮问答（默认 5 轮）。回复流式渲染。每轮异步生成一句话摘要（用于列表导航）。
+
+**关键原则**：论文全文始终在 L1 上下文中。初始摘要不在 Chat 阶段重复发送。只有最近 N 轮问答在 L2 上下文中。这保证了即使对话进行到第 50 轮，AI 依然准确地"记得"论文内容，而不是被聊天记录淹没。
+
+### API 端点
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/papers` | POST | 新建论文（URL -> 抓取 -> INIT 摘要流式输出 via SSE） |
+| `/api/papers` | GET | 论文列表 |
+| `/api/papers/{id}` | GET | 获取论文详情 + 对话历史 |
+| `/api/papers/{id}` | DELETE | 删除论文 |
+| `/api/papers/{id}/chat` | POST | 提问（SSE 流式回复） |
+| `/api/papers/{id}/retry-summary` | POST | 重新生成/续写摘要（SSE） |
+| `/api/papers/{id}/chat/{n}/retry` | POST | 重新生成第 n 轮回答（SSE） |
+| `/api/papers/{id}/export` | POST | 导出到 Obsidian |
+| `/api/papers/{id}/rounds/{n}` | DELETE | 删除指定轮次 |
+| `/api/config` | GET | 查看配置 |
+| `/api/config` | POST | 更新配置 |
+
+所有流式端点使用 Server-Sent Events (SSE)，事件类型：`created` / `chunk` / `done` / `error` / `title`。
+
+### 数据持久化
+
+每篇论文以 JSON 文件保存在 `~/.paperpaper/papers/{uuid}.json`，包含完整论文内容、摘要、对话历史。支持 UUID 会话 ID 和旧版数字 ID 向后兼容。
+
+## 开发
 
 ```bash
-# 全部测试（含真实 API 调用）
+# 完整构建（前端 + Go）
+just build
+
+# 开发模式（热更新）
+just dev
+
+# 仅构建 Go
+just build-go
+
+# 代码检查
+just vet
+just typecheck   # 前端 TypeScript 检查
+
+# 测试
 go test ./... -v
 
-# 仅单元测试
-go test ./internal/config/ ./internal/session/ ./internal/prompt/ ./internal/urlparse/ ./internal/export/ -v
+# 清理
+just clean
 ```
+
+开发模式下，前端通过 Vite 代理请求到 Go 后端，实现前后端独立热更新。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 UI | React 19, TypeScript, Tailwind CSS 4 |
+| 状态管理 | Zustand 5 |
+| 数据请求 | TanStack React Query 5 |
+| Markdown 渲染 | react-markdown + remark-math + rehype-katex + rehype-highlight |
+| 图标 | Lucide React |
+| 后端 | Go 1.25+ (net/http, embed) |
+| SSE 流式 | Server-Sent Events |
+| LLM API | OpenAI 兼容接口 |
+| 持久化 | JSON 文件 (~/.paperpaper/papers/) |
+| 旧架构 | Bubble Tea 2 (保留，可通过 `paperpaper --tui` 启动) |
 
 ## 许可
 

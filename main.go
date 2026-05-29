@@ -4,9 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -19,7 +23,7 @@ import (
 	"github.com/paperpaper/paperpaper/internal/urlparse"
 )
 
-var serverMode = flag.Bool("server", false, "Run as HTTP server instead of TUI")
+var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")
 
 func main() {
 	flag.Parse()
@@ -43,26 +47,35 @@ func main() {
 	os.MkdirAll(config.PapersDir(), 0755)
 	os.MkdirAll(config.PromptsDir(), 0755)
 
-	if *serverMode {
-		runServer(cfg)
+	if *tuiMode {
+		runTUI(cfg)
 		return
 	}
 
-	runTUI(cfg)
+	runServer(cfg)
 }
 
 func runServer(cfg *config.Config) {
 	s := server.New(cfg)
 
-	addr := ":8686"
+	startPort := 8686
+	baseAddr := fmt.Sprintf(":%d", startPort)
 	if v := os.Getenv("PAPER_ADDR"); v != "" {
-		addr = v
+		baseAddr = v
+	}
+
+	ln, actualPort, err := findAvailablePort(baseAddr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to find available port: %v\n", err)
+		os.Exit(1)
 	}
 
 	httpServer := &http.Server{
-		Addr:    addr,
 		Handler: s.Handler(),
 	}
+
+	url := fmt.Sprintf("http://localhost:%d", actualPort)
+	fmt.Printf("PaperPaper server starting on %s\n", url)
 
 	// Handle graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -77,11 +90,53 @@ func runServer(cfg *config.Config) {
 		}
 	}()
 
-	fmt.Printf("PaperPaper server starting on http://localhost%s\n", addr)
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	// Auto-open browser
+	go openBrowser(url)
+
+	if err := httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// findAvailablePort tries to listen on baseAddr. If the port is occupied,
+// it increments the port number up to 100 times until it finds an open one.
+func findAvailablePort(baseAddr string) (net.Listener, int, error) {
+	host, portStr, err := net.SplitHostPort(baseAddr)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid address %q: %w", baseAddr, err)
+	}
+
+	startPort, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid port in %q: %w", baseAddr, err)
+	}
+
+	for port := startPort; port < startPort+100; port++ {
+		addr := net.JoinHostPort(host, strconv.Itoa(port))
+		ln, listenErr := net.Listen("tcp", addr)
+		if listenErr == nil {
+			return ln, port, nil
+		}
+	}
+
+	return nil, 0, fmt.Errorf("no available port found starting from %d", startPort)
+}
+
+// openBrowser opens the given URL in the default browser.
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	default:
+		return
+	}
+	_ = cmd.Start()
 }
 
 func runTUI(cfg *config.Config) {

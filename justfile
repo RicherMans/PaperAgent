@@ -15,7 +15,7 @@ default:
 # Ctrl+C 同时退出两个服务。浏览器访问 http://localhost:5173
 dev: install build-go
     npx concurrently -n Go,Vite -c cyan,green \
-        "GOCACHE={{gocache}} ./{{bin}} --server" \
+        "GOCACHE={{gocache}} ./{{bin}}" \
         "cd frontend && npm run dev"
 
 # ---- 构建 ----
@@ -40,7 +40,7 @@ build-go:
 
 # 生产模式：单二进制（内含前端），浏览器访问 http://localhost:8686
 serve: build
-    ./{{bin}} --server
+    ./{{bin}}
 
 # ---- 代码质量 ----
 
