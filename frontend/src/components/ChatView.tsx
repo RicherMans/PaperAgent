@@ -4,14 +4,14 @@ import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Maximize2, Minimize2, Sun, Moon, Monitor } from 'lucide-react'
 import { usePaper } from '../hooks/usePapers'
 import { useSSE } from '../hooks/useSSE'
 import { useAppStore } from '../stores/appStore'
 import { MessageBubble } from './MessageBubble'
 import { ScrollButtons } from './ScrollButtons'
 import { FontSizeButton } from './FontSizeButton'
-import type { Message } from '../types'
+import type { Message, Theme } from '../types'
 
 const remarkPlugins = [remarkMath, remarkGfm]
 const rehypePlugins = [rehypeKatex, rehypeHighlight]
@@ -30,6 +30,7 @@ export function ChatView() {
   const {
     currentPaperId,
     pendingPaperId, pendingSummary, pendingError, clearPending,
+    theme, setTheme, contentWidth, toggleContentWidth,
   } = useAppStore()
   const { data: paper, isLoading, refetch } = usePaper(currentPaperId)
   const { streamRequest } = useSSE()
@@ -249,6 +250,26 @@ export function ChatView() {
         <h2 className="text-sm font-medium truncate flex-1">
           {paper?.title || '加载中...'}
         </h2>
+        <button
+          onClick={toggleContentWidth}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+          title={contentWidth === 'full' ? '窄屏阅读' : '宽屏阅读'}
+          aria-label={contentWidth === 'full' ? '切换到窄屏' : '切换到宽屏'}
+        >
+          {contentWidth === 'full' ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
+        <button
+          onClick={() => {
+            const cycle: Theme[] = ['light', 'dark', 'system']
+            const idx = cycle.indexOf(theme)
+            setTheme(cycle[(idx + 1) % cycle.length])
+          }}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+          title={`主题: ${theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '跟随系统'}`}
+          aria-label="切换主题"
+        >
+          {theme === 'light' ? <Sun size={16} /> : theme === 'dark' ? <Moon size={16} /> : <Monitor size={16} />}
+        </button>
         <FontSizeButton />
         {paper?.source_url && (
           <a href={paper.source_url} target="_blank" rel="noopener noreferrer"
@@ -260,6 +281,7 @@ export function ChatView() {
 
       {/* Messages */}
       <div ref={containerRef} className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className={contentWidth === 'narrow' ? 'max-w-[55%] mx-auto' : ''}>
         {/* PENDING SUMMARY STREAM (from NewPaperDialog SSE) */}
         {isPending && (
           <div className="flex gap-3 px-4 py-3">
@@ -367,6 +389,7 @@ export function ChatView() {
         )}
 
         <div className="h-4" />
+        </div>
       </div>
 
       <ScrollButtons containerRef={containerRef} />

@@ -11,6 +11,10 @@ interface AppState {
   setFontSize: (size: FontSize) => void
   cycleFontSize: () => void
 
+  // Content width
+  contentWidth: 'full' | 'narrow'
+  toggleContentWidth: () => void
+
   // Current paper
   currentPaperId: string | null
   setCurrentPaperId: (id: string | null) => void
@@ -90,6 +94,10 @@ function applyFontSize(size: FontSize) {
   root.style.setProperty('--paper-font-size', FONT_SIZES[size])
 }
 
+function getInitialContentWidth(): 'full' | 'narrow' {
+  return localStorage.getItem('paperpaper-content-width') === 'narrow' ? 'narrow' : 'full'
+}
+
 export const useAppStore = create<AppState>((set) => ({
   theme: getInitialTheme(),
   setTheme: (theme) => {
@@ -141,6 +149,15 @@ export const useAppStore = create<AppState>((set) => ({
 
   sendQuestion: null,
   setSendQuestion: (fn) => set({ sendQuestion: fn }),
+
+  contentWidth: getInitialContentWidth(),
+  toggleContentWidth: () => {
+    set((s) => {
+      const next = s.contentWidth === 'full' ? 'narrow' : 'full'
+      localStorage.setItem('paperpaper-content-width', next)
+      return { contentWidth: next }
+    })
+  },
 }))
 
 // Apply initial values

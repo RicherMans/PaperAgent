@@ -11,7 +11,7 @@ interface CmdEntry {
 }
 
 export function InputBox() {
-  const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen, sendQuestion } = useAppStore()
+  const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen, sendQuestion, contentWidth } = useAppStore()
   const exportPaper = useExportPaper()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [showCommands, setShowCommands] = useState(false)
@@ -57,12 +57,12 @@ export function InputBox() {
     }
   }, [inputValue, filteredCommands.length])
 
-  // Auto-resize textarea
+  // Auto-resize textarea: default 5 lines, max 10 lines
   useEffect(() => {
     const el = inputRef.current
     if (el) {
       el.style.height = 'auto'
-      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+      el.style.height = Math.min(Math.max(el.scrollHeight, 5 * 24), 10 * 24) + 'px'
     }
   }, [inputValue])
 
@@ -118,6 +118,7 @@ export function InputBox() {
 
   return (
     <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 relative">
+      <div className={contentWidth === 'narrow' ? 'max-w-[55%] mx-auto' : ''}>
       {/* Command autocomplete */}
       {showCommands && (
         <div className="absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50"
@@ -158,8 +159,8 @@ export function InputBox() {
           onKeyDown={handleKeyDown}
           placeholder={isStreaming ? '正在生成回复...' : '输入问题，Shift+Enter 换行。输入 / 查看命令...'}
           disabled={isStreaming}
-          rows={1}
-          className="flex-1 resize-none bg-gray-100 dark:bg-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 placeholder-gray-400 disabled:opacity-50"
+          className="flex-1 resize-none bg-gray-100 dark:bg-gray-900 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 placeholder-gray-400 disabled:opacity-50 overflow-y-auto"
+          style={{ minHeight: 5 * 24, maxHeight: 10 * 24 }}
         />
         <button
           onClick={handleSend}
@@ -168,6 +169,7 @@ export function InputBox() {
         >
           <Send size={16} />
         </button>
+      </div>
       </div>
     </div>
   )
