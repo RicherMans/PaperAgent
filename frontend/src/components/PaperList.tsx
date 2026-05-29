@@ -1,6 +1,6 @@
-import { Plus, Trash2, MoreHorizontal, Download } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { usePaperList, useDeletePaper, useExportPaper } from '../hooks/usePapers'
+import { Plus, Trash2, MoreHorizontal, Download, Pencil } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle } from '../hooks/usePapers'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
 
@@ -8,8 +8,12 @@ export function PaperList() {
   const { data: papers, isLoading, isError, refetch } = usePaperList()
   const deletePaper = useDeletePaper()
   const exportPaper = useExportPaper()
+  const updateTitle = useUpdateTitle()
   const { currentPaperId, setCurrentPaperId, setNewPaperOpen } = useAppStore()
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState<string | null>(null) // paper id
+  const [editValue, setEditValue] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
 
   // Close menu on outside click — tracks by data attribute, not ref
   useEffect(() => {
@@ -48,6 +52,33 @@ export function PaperList() {
       toast.error(err instanceof Error ? err.message : '导出失败')
     }
     setMenuOpen(null)
+  }
+
+  const handleEditTitle = (id: string, currentTitle: string) => {
+    setEditingTitle(id)
+    setEditValue(currentTitle)
+    setMenuOpen(null)
+    // Focus input after render
+    requestAnimationFrame(() => editInputRef.current?.focus())
+  }
+
+  const handleSaveTitle = async (id: string) => {
+    const trimmed = editValue.trim()
+    if (trimmed) {
+      try {
+        await updateTitle.mutateAsync({ id, title: trimmed })
+        toast.success('标题已更新')
+      } catch {
+        toast.error('更新标题失败')
+      }
+    }
+    setEditingTitle(null)
+    setEditValue('')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTitle(null)
+    setEditValue('')
   }
 
   const formatDate = (dateStr: string) => {
@@ -128,15 +159,34 @@ export function PaperList() {
               role="button"
               tabIndex={0}
               className="cursor-pointer outline-none"
-              onClick={() => setCurrentPaperId(p.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setCurrentPaperId(p.id) }}
+              onClick={() => { if (editingTitle !== p.id) setCurrentPaperId(p.id) }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && editingTitle !== p.id) setCurrentPaperId(p.id) }}
             >
-              <div className="text-sm font-medium truncate pr-6 text-gray-800 dark:text-gray-200">
-                {p.title || '未命名论文'}
-              </div>
-              <div className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
-                {formatDate(p.updated_at)}
-              </div>
+              {editingTitle === p.id ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={editInputRef}
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTitle(p.id)
+                      if (e.key === 'Escape') handleCancelEdit()
+                    }}
+                    onBlur={() => handleSaveTitle(p.id)}
+                    className="flex-1 text-sm px-1.5 py-0.5 rounded border border-blue-500 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 outline-none min-w-0"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm font-medium truncate pr-6 text-gray-800 dark:text-gray-200">
+                    {p.title || '未命名论文'}
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
+                    {formatDate(p.updated_at)}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -162,6 +212,13 @@ export function PaperList() {
                   className="absolute right-0 top-full mt-0.5 w-28 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50"
                   role="menu"
                 >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleEditTitle(p.id, p.title) }}
+                    className="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                    role="menuitem"
+                  >
+                    <Pencil size={12} /> 编辑标题
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleExport(p.id) }}
                     className="w-full px-3 py-1.5 text-xs text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-1.5"

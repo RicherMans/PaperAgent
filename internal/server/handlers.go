@@ -79,6 +79,16 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 	paper := session.NewPaper(content, sourceURL)
 	paper.ModelUsed = s.cfg.API.DefaultModel
 
+	// Try HTML title extraction for arXiv papers (instant, no LLM call)
+	if _, arxivID, ok := urlparse.NormalizeArxivInput(sourceURL); ok {
+		if title, err := urlparse.FetchArxivTitle(arxivID); err == nil && title != "" {
+			paper.SetTitle(title)
+			log.Printf("[new-paper] title from HTML: %s", title)
+		} else {
+			log.Printf("[new-paper] HTML title extraction failed for %s: %v", arxivID, err)
+		}
+	}
+
 	if err := paper.Save(); err != nil {
 		log.Printf("[new-paper] save error: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "save failed"})
@@ -98,6 +108,11 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 	if err := sw.WriteCreated(paper.Ref()); err != nil {
 		log.Printf("[new-paper] failed to send created event: %v", err)
 		return
+	}
+
+	// Send title immediately if HTML extraction succeeded
+	if paper.Title != "" {
+		sw.WriteTitle(paper.Title)
 	}
 
 	log.Printf("[new-paper] starting summary stream for %s", paper.Ref())
@@ -147,17 +162,6 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 	paper.SetInitialSummary(summary)
 	paper.Save()
 
-	// Extract title synchronously
-	title, err := s.api.ExtractTitle(s.cfg.API.LightModel, content)
-	if err == nil && title != "" {
-		paper.SetTitle(title)
-		paper.Save()
-		sw.WriteTitle(title)
-		log.Printf("[new-paper] title extracted: %s", title)
-	} else if err != nil {
-		log.Printf("[new-paper] title extraction failed: %v", err)
-	}
-
 	sw.WriteDone(paper.Ref())
 }
 
@@ -196,6 +200,30 @@ func (s *Server) handleDeletePaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (s *Server) handleUpdateTitle(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<12) // 4KB
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Title == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "title required"})
+		return
+	}
+
+	unlock := s.lockPaper(id)
+	defer unlock()
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+	paper.SetTitle(req.Title)
+	paper.Save()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "title": req.Title})
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
@@ -450,18 +478,6 @@ func (s *Server) handleRetrySummary(w http.ResponseWriter, r *http.Request) {
 	final := existingSummary + newContent.String()
 	paper.SetInitialSummary(final)
 	paper.Save()
-
-	// Extract title if not set yet
-	if paper.Title == "" {
-		title, err := s.api.ExtractTitle(s.cfg.API.LightModel, paper.Content)
-		if err == nil && title != "" {
-			paper.SetTitle(title)
-			paper.Save()
-			sw.WriteTitle(title)
-		} else if err != nil {
-			log.Printf("[retry-summary] title extraction failed: %v", err)
-		}
-	}
 
 	sw.WriteDone(paper.Ref())
 }

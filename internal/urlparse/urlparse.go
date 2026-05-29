@@ -107,6 +107,39 @@ func FetchURL(url string) (string, error) {
 	return httpFetch(url)
 }
 
+var arxivTitleRe = regexp.MustCompile(`<title>\[([^\]]+)\]\s+(.*?)</title>`)
+
+// FetchArxivTitle fetches the arXiv abstract page and extracts the paper title from the HTML <title> tag.
+// Format: "[arxivID] Paper Title" → returns "Paper Title".
+func FetchArxivTitle(arxivID string) (string, error) {
+	url := "https://arxiv.org/abs/" + arxivID
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("fetching arxiv page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("arxiv HTTP %d", resp.StatusCode)
+	}
+
+	// Read only first 8KB — <title> is always in <head>
+	buf := make([]byte, 8192)
+	n, err := resp.Body.Read(buf)
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("reading arxiv page: %w", err)
+	}
+
+	matches := arxivTitleRe.FindSubmatch(buf[:n])
+	if len(matches) < 3 {
+		return "", fmt.Errorf("title not found in arxiv page")
+	}
+
+	return string(matches[2]), nil
+}
+
 func tryArxiv2Text(url string) (string, error) {
 	// Check if arxiv2text is available
 	path, err := exec.LookPath("arxiv2text")

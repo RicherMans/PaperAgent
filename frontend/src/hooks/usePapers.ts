@@ -49,3 +49,17 @@ export function useExportPaper() {
       }),
   })
 }
+
+export function useUpdateTitle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      fetchJSON<{ status: string; title: string }>(`${BASE}/papers/${id}/title`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['papers'] })
+    },
+  })
+}
