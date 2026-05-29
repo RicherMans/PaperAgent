@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/paperpaper/paperagent/internal/api"
-	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/api"
+	"github.com/happyTonakai/paperagent/internal/config"
 )
 
 //go:embed frontend-dist

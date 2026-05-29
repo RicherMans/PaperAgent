@@ -1,4 +1,4 @@
-module github.com/paperpaper/paperagent
+module github.com/happyTonakai/paperagent
 
 go 1.25.8
 

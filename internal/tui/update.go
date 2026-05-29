@@ -8,11 +8,11 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbletea/v2"
 
-	"github.com/paperpaper/paperagent/internal/api"
-	exportPkg "github.com/paperpaper/paperagent/internal/export"
-	"github.com/paperpaper/paperagent/internal/prompt"
-	"github.com/paperpaper/paperagent/internal/session"
-	"github.com/paperpaper/paperagent/internal/urlparse"
+	"github.com/happyTonakai/paperagent/internal/api"
+	exportPkg "github.com/happyTonakai/paperagent/internal/export"
+	"github.com/happyTonakai/paperagent/internal/prompt"
+	"github.com/happyTonakai/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/urlparse"
 
 	"charm.land/bubbles/v2/textarea"
 )

@@ -12,12 +12,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/paperpaper/paperagent/internal/config"
-	"github.com/paperpaper/paperagent/internal/server"
-	"github.com/paperpaper/paperagent/internal/session"
-	"github.com/paperpaper/paperagent/internal/systray"
-	"github.com/paperpaper/paperagent/internal/tui"
-	"github.com/paperpaper/paperagent/internal/urlparse"
+	"github.com/happyTonakai/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/server"
+	"github.com/happyTonakai/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/systray"
+	"github.com/happyTonakai/paperagent/internal/tui"
+	"github.com/happyTonakai/paperagent/internal/urlparse"
 )
 
 var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")

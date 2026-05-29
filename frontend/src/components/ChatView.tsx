@@ -528,8 +528,8 @@ export function ChatView() {
         </div>
       </div>
 
-      <ScrollButtons containerRef={containerRef} />
-      <RoundNav messages={paper?.messages ?? []} containerRef={containerRef} />
+      <ScrollButtons containerRef={containerRef} narrow={contentWidth === 'narrow'} />
+      <RoundNav messages={paper?.messages ?? []} containerRef={containerRef} narrow={contentWidth === 'narrow'} />
     </div>
   )
 }

@@ -10,9 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/paperpaper/paperagent/internal/api"
-	"github.com/paperpaper/paperagent/internal/config"
-	"github.com/paperpaper/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/api"
+	"github.com/happyTonakai/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/session"
 )
 
 func testConfig() *config.Config {

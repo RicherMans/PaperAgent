@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/config"
 )
 
 //go:embed prompts/heavy.txt

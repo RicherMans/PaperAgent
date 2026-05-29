@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/paperpaper/paperagent/internal/api"
-	"github.com/paperpaper/paperagent/internal/config"
-	"github.com/paperpaper/paperagent/internal/export"
-	"github.com/paperpaper/paperagent/internal/prompt"
-	"github.com/paperpaper/paperagent/internal/session"
-	"github.com/paperpaper/paperagent/internal/urlparse"
+	"github.com/happyTonakai/paperagent/internal/api"
+	"github.com/happyTonakai/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/export"
+	"github.com/happyTonakai/paperagent/internal/prompt"
+	"github.com/happyTonakai/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/urlparse"
 )
 
 // --- Request types ---

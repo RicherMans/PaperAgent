@@ -3,9 +3,10 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 
 interface ScrollButtonsProps {
   containerRef: RefObject<HTMLDivElement | null>
+  narrow?: boolean
 }
 
-export function ScrollButtons({ containerRef }: ScrollButtonsProps) {
+export function ScrollButtons({ containerRef, narrow }: ScrollButtonsProps) {
   const [showButtons, setShowButtons] = useState(false)
 
   useEffect(() => {
@@ -36,8 +37,8 @@ export function ScrollButtons({ containerRef }: ScrollButtonsProps) {
 
   return (
     <div
-      className="absolute right-4 bottom-20 flex flex-col gap-1.5 animate-fade-in-up"
-      style={{ fontFamily: 'var(--font-ui)' }}
+      className="absolute bottom-20 flex flex-col gap-1.5 animate-fade-in-up"
+      style={{ right: narrow ? 'calc((100% - 55%) / 2 - 40px)' : 16, fontFamily: 'var(--font-ui)' }}
     >
       <button
         onClick={scrollToTop}

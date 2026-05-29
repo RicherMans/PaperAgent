@@ -5,6 +5,7 @@ import type { Message } from '../types'
 interface RoundNavProps {
   messages: Message[]
   containerRef: React.RefObject<HTMLDivElement | null>
+  narrow?: boolean
 }
 
 function truncate(s: string, max: number) {
@@ -15,7 +16,7 @@ function truncate(s: string, max: number) {
 const COL_WIDTH = 30
 const ROW_HEIGHT = 14
 
-export function RoundNav({ messages, containerRef }: RoundNavProps) {
+export function RoundNav({ messages, containerRef, narrow }: RoundNavProps) {
   const [visible, setVisible] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
@@ -55,7 +56,8 @@ export function RoundNav({ messages, containerRef }: RoundNavProps) {
 
   return (
     <div
-      className="absolute right-0 top-0 bottom-0 z-20 flex flex-col items-center justify-center"
+      className="absolute top-0 bottom-0 z-20 flex flex-col items-center justify-center"
+      style={{ right: narrow ? 'calc((100% - 55%) / 2 - 40px)' : 4 }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
     >

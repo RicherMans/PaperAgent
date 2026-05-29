@@ -11,6 +11,8 @@ import (
 	"fyne.io/systray"
 )
 
+const repoURL = "https://github.com/happyTonakai/PaperAgent"
+
 // Options configures the systray behavior.
 type Options struct {
 	Port int
@@ -47,7 +49,7 @@ func onReady(opts Options) {
 			case <-mOpen.ClickedCh:
 				openBrowser(url)
 			case <-mAbout.ClickedCh:
-				openBrowser(url)
+				openBrowser(repoURL)
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return

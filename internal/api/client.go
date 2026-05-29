@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paperpaper/paperagent/internal/config"
-	"github.com/paperpaper/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/session"
 )
 
 type ChatMessage struct {

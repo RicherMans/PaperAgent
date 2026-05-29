@@ -7,7 +7,7 @@ import (
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/paperpaper/paperagent/internal/session"
+	"github.com/happyTonakai/paperagent/internal/session"
 )
 
 func (m *Model) View() tea.View {

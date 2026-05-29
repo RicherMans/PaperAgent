@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paperpaper/paperagent/internal/config"
+	"github.com/happyTonakai/paperagent/internal/config"
 )
 
 func setupTestDir(t *testing.T) string {
