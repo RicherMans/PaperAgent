@@ -15,6 +15,10 @@ interface AppState {
   contentWidth: 'full' | 'narrow'
   toggleContentWidth: () => void
 
+  // Sidebar width
+  sidebarWidth: number
+  setSidebarWidth: (w: number) => void
+
   // Current paper
   currentPaperId: string | null
   setCurrentPaperId: (id: string | null) => void
@@ -98,6 +102,15 @@ function getInitialContentWidth(): 'full' | 'narrow' {
   return localStorage.getItem('paperpaper-content-width') === 'narrow' ? 'narrow' : 'full'
 }
 
+function getInitialSidebarWidth(): number {
+  const stored = localStorage.getItem('paperpaper-sidebar-width')
+  if (stored) {
+    const n = parseInt(stored, 10)
+    if (n >= 180 && n <= 500) return n
+  }
+  return 256
+}
+
 export const useAppStore = create<AppState>((set) => ({
   theme: getInitialTheme(),
   setTheme: (theme) => {
@@ -157,6 +170,12 @@ export const useAppStore = create<AppState>((set) => ({
       localStorage.setItem('paperpaper-content-width', next)
       return { contentWidth: next }
     })
+  },
+
+  sidebarWidth: getInitialSidebarWidth(),
+  setSidebarWidth: (w) => {
+    localStorage.setItem('paperpaper-sidebar-width', String(w))
+    set({ sidebarWidth: w })
   },
 }))
 

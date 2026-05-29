@@ -35,6 +35,7 @@ type paperResponse struct {
 	SourceURL      string            `json:"source_url"`
 	InitialSummary string            `json:"initial_summary"`
 	ModelUsed      string            `json:"model_used"`
+	Rating         int               `json:"rating"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
 	Messages       []messageResponse `json:"messages"`
@@ -51,6 +52,7 @@ type messageResponse struct {
 type paperSummaryResponse struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
+	Rating    int    `json:"rating"`
 	UpdatedAt string `json:"updated_at"`
 }
 
@@ -187,6 +189,7 @@ func (s *Server) handleListPapers(w http.ResponseWriter, r *http.Request) {
 		response = append(response, paperSummaryResponse{
 			ID:        p.Ref(),
 			Title:     p.Title,
+			Rating:    p.Rating,
 			UpdatedAt: p.UpdatedAt.Format("2006-01-02 15:04"),
 		})
 	}
@@ -224,6 +227,30 @@ func (s *Server) handleUpdateTitle(w http.ResponseWriter, r *http.Request) {
 	paper.SetTitle(req.Title)
 	paper.Save()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "title": req.Title})
+}
+
+func (s *Server) handleUpdateRating(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<12) // 4KB
+	var req struct {
+		Rating int `json:"rating"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Rating < 1 || req.Rating > 10 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "rating must be 1-10"})
+		return
+	}
+
+	unlock := s.lockPaper(id)
+	defer unlock()
+	paper, err := session.LoadPaperByRef(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "paper not found"})
+		return
+	}
+	paper.Rating = req.Rating
+	paper.Save()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "rating": fmt.Sprintf("%d", req.Rating)})
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
@@ -695,6 +722,7 @@ func paperToResponse(p *session.Paper) paperResponse {
 		SourceURL:      p.SourceURL,
 		InitialSummary: p.InitialSummary,
 		ModelUsed:      p.ModelUsed,
+		Rating:         p.Rating,
 		CreatedAt:      p.CreatedAt.Format("2006-01-02 15:04"),
 		UpdatedAt:      p.UpdatedAt.Format("2006-01-02 15:04"),
 		Messages:       msgs,

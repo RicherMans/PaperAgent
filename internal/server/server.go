@@ -51,6 +51,7 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("GET /api/papers/{id}", s.handleGetPaper)
 	mux.HandleFunc("DELETE /api/papers/{id}", s.handleDeletePaper)
 	mux.HandleFunc("PATCH /api/papers/{id}/title", s.handleUpdateTitle)
+	mux.HandleFunc("PATCH /api/papers/{id}/rating", s.handleUpdateRating)
 	mux.HandleFunc("POST /api/papers/{id}/chat", s.handleChat)
 	mux.HandleFunc("DELETE /api/papers/{id}/rounds/{n}", s.handleDeleteRound)
 	mux.HandleFunc("POST /api/papers/{id}/export", s.handleExport)

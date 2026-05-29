@@ -38,6 +38,7 @@ type Paper struct {
 	InitialSummary string    `json:"initial_summary"`
 	ModelUsed      string    `json:"model_used"`
 	TotalTokens    int       `json:"total_tokens_used"`
+	Rating         int       `json:"rating"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Messages       []Message `json:"messages"`
@@ -331,6 +332,7 @@ type PaperSummary struct {
 	ID        int
 	SessionID string
 	Title     string
+	Rating    int
 	UpdatedAt time.Time
 }
 
@@ -385,7 +387,7 @@ func ListPapers() ([]PaperSummary, error) {
 				title = fmt.Sprintf("Paper #%d", p.ID)
 			}
 		}
-		papers = append(papers, PaperSummary{ID: p.ID, SessionID: p.SessionID, Title: title, UpdatedAt: p.UpdatedAt})
+		papers = append(papers, PaperSummary{ID: p.ID, SessionID: p.SessionID, Title: title, Rating: p.Rating, UpdatedAt: p.UpdatedAt})
 	}
 
 	sort.Slice(papers, func(i, j int) bool {

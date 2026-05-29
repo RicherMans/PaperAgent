@@ -14,6 +14,7 @@ export interface Paper {
   source_url: string
   initial_summary: string
   model_used: string
+  rating?: number
   created_at: string
   updated_at: string
   messages: Message[]
@@ -22,6 +23,7 @@ export interface Paper {
 export interface PaperSummary {
   id: string
   title: string
+  rating?: number
   updated_at: string
 }
 

@@ -41,6 +41,20 @@ export function useDeletePaper() {
   })
 }
 
+export function useUpdateRating() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rating }: { id: string; rating: number }) =>
+      fetchJSON<{ status: string; rating: string }>(`${BASE}/papers/${id}/rating`, {
+        method: 'PATCH',
+        body: JSON.stringify({ rating }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['papers'] })
+    },
+  })
+}
+
 export function useExportPaper() {
   return useMutation({
     mutationFn: (id: string) =>

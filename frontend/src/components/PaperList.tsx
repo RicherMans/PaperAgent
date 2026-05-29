@@ -1,20 +1,122 @@
-import { Plus, Trash2, MoreHorizontal, Download, Pencil } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
-import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle } from '../hooks/usePapers'
+import { Plus, Trash2, MoreHorizontal, Download, Pencil, ArrowUp, ArrowDown } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle, useUpdateRating } from '../hooks/usePapers'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
+import type { PaperSummary } from '../types'
+
+type SortBy = 'time' | 'rating'
+type SortOrder = 'asc' | 'desc'
+
+function getInitialSortBy(): SortBy {
+  const v = localStorage.getItem('paperpaper-sort-by')
+  return v === 'rating' ? 'rating' : 'time'
+}
+function getInitialSortOrder(): SortOrder {
+  const v = localStorage.getItem('paperpaper-sort-order')
+  return v === 'asc' ? 'asc' : 'desc'
+}
+
+function RatingDots({ rating, onRate }: { rating: number; onRate: (n: number) => void }) {
+  const [hovered, setHovered] = useState(0)
+
+  return (
+    <div
+      className="flex items-center gap-px mt-1.5"
+      onMouseLeave={() => setHovered(0)}
+      title={rating > 0 ? `评分: ${rating}/10` : '点击评分 (1-10)'}
+    >
+      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+        const filled = hovered ? n <= hovered : n <= rating
+        return (
+          <button
+            key={n}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRate(n === rating ? 0 : n)
+            }}
+            onMouseEnter={() => setHovered(n)}
+            className="w-2.5 h-2.5 rounded-full transition-all duration-150 hover:scale-125"
+            style={{
+              backgroundColor: filled
+                ? 'var(--color-accent)'
+                : 'var(--color-text-muted)',
+              opacity: filled ? 1 : 0.25,
+            }}
+            aria-label={`评分 ${n}`}
+          />
+        )
+      })}
+      {rating > 0 && (
+        <span
+          className="text-xs ml-1 tabular-nums"
+          style={{ color: 'var(--color-accent)', fontFamily: 'var(--font-ui)' }}
+        >
+          {rating}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export function PaperList() {
   const { data: papers, isLoading, isError, refetch } = usePaperList()
   const deletePaper = useDeletePaper()
   const exportPaper = useExportPaper()
   const updateTitle = useUpdateTitle()
-  const { currentPaperId, setCurrentPaperId, setNewPaperOpen } = useAppStore()
+  const updateRating = useUpdateRating()
+  const { currentPaperId, setCurrentPaperId, setNewPaperOpen, sidebarWidth, setSidebarWidth } = useAppStore()
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const editInputRef = useRef<HTMLInputElement>(null)
 
+  // Sort state
+  const [sortBy, setSortBy] = useState<SortBy>(getInitialSortBy)
+  const [sortOrder, setSortOrder] = useState<SortOrder>(getInitialSortOrder)
+
+  // Resize state
+  const [dragging, setDragging] = useState(false)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(0)
+
+  const toggleSortBy = () => {
+    const next: SortBy = sortBy === 'time' ? 'rating' : 'time'
+    localStorage.setItem('paperpaper-sort-by', next)
+    setSortBy(next)
+  }
+
+  const toggleSortOrder = () => {
+    const next: SortOrder = sortOrder === 'desc' ? 'asc' : 'desc'
+    localStorage.setItem('paperpaper-sort-order', next)
+    setSortOrder(next)
+  }
+
+  // Resize handlers
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setDragging(true)
+    dragStartX.current = e.clientX
+    dragStartWidth.current = sidebarWidth
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientX - dragStartX.current
+      const w = Math.max(180, Math.min(500, dragStartWidth.current + delta))
+      setSidebarWidth(w)
+    }
+    const onUp = () => setDragging(false)
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging, setSidebarWidth])
+
+  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return
     const handler = (e: MouseEvent) => {
@@ -78,6 +180,14 @@ export function PaperList() {
     setEditValue('')
   }
 
+  const handleRate = async (id: string, rating: number) => {
+    try {
+      await updateRating.mutateAsync({ id, rating })
+    } catch {
+      toast.error('评分失败')
+    }
+  }
+
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr)
@@ -92,10 +202,27 @@ export function PaperList() {
     }
   }
 
+  // Sort papers
+  const sortedPapers = useMemo(() => {
+    if (!papers) return []
+    const sorted = [...papers]
+    sorted.sort((a, b) => {
+      let cmp: number
+      if (sortBy === 'rating') {
+        cmp = ((a as PaperSummary).rating ?? 0) - ((b as PaperSummary).rating ?? 0)
+      } else {
+        cmp = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
+      }
+      return sortOrder === 'asc' ? cmp : -cmp
+    })
+    return sorted
+  }, [papers, sortBy, sortOrder])
+
   return (
     <div
-      className="w-64 flex-shrink-0 flex flex-col h-full"
+      className="flex-shrink-0 flex flex-col h-full relative"
       style={{
+        width: sidebarWidth,
         backgroundColor: 'var(--color-bg-elevated)',
         borderRight: '1px solid var(--color-border)',
       }}
@@ -111,18 +238,41 @@ export function PaperList() {
         >
           论文列表
         </h1>
-        <button
-          onClick={() => setNewPaperOpen(true)}
-          className="p-1.5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95"
-          style={{
-            color: 'var(--color-accent)',
-            backgroundColor: 'var(--color-accent-subtle)',
-          }}
-          title="新建论文"
-          aria-label="新建论文"
-        >
-          <Plus size={15} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleSortBy}
+            className="p-1 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 text-xs"
+            style={{
+              color: sortBy === 'rating' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+              fontFamily: 'var(--font-ui)',
+            }}
+            title={`排序: ${sortBy === 'time' ? '时间' : '评分'}`}
+            aria-label={`按${sortBy === 'time' ? '评分' : '时间'}排序`}
+          >
+            {sortBy === 'time' ? '时间' : '评分'}
+          </button>
+          <button
+            onClick={toggleSortOrder}
+            className="p-1 rounded-md transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{ color: 'var(--color-text-muted)' }}
+            title={sortOrder === 'desc' ? '降序' : '升序'}
+            aria-label={sortOrder === 'desc' ? '切换升序' : '切换降序'}
+          >
+            {sortOrder === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+          </button>
+          <button
+            onClick={() => setNewPaperOpen(true)}
+            className="p-1.5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ml-2"
+            style={{
+              color: 'var(--color-accent)',
+              backgroundColor: 'var(--color-accent-subtle)',
+            }}
+            title="新建论文"
+            aria-label="新建论文"
+          >
+            <Plus size={15} />
+          </button>
+        </div>
       </div>
 
       {/* List */}
@@ -131,24 +281,18 @@ export function PaperList() {
           <div className="p-3 space-y-3">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse px-2 py-2">
-                <div
-                  className="h-4 rounded w-full mb-1.5"
-                  style={{
-                    background: 'var(--color-bg-inset)',
-                    backgroundImage: 'linear-gradient(90deg, transparent, var(--color-border-light), transparent)',
-                    backgroundSize: '200% 100%',
-                    animation: 'shimmer 1.5s infinite',
-                  }}
-                />
-                <div
-                  className="h-3 rounded w-1/2"
-                  style={{
-                    background: 'var(--color-bg-inset)',
-                    backgroundImage: 'linear-gradient(90deg, transparent, var(--color-border-light), transparent)',
-                    backgroundSize: '200% 100%',
-                    animation: 'shimmer 1.5s infinite',
-                  }}
-                />
+                <div className="h-4 rounded w-full mb-1.5" style={{
+                  background: 'var(--color-bg-inset)',
+                  backgroundImage: 'linear-gradient(90deg, transparent, var(--color-border-light), transparent)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.5s infinite',
+                }} />
+                <div className="h-3 rounded w-1/2" style={{
+                  background: 'var(--color-bg-inset)',
+                  backgroundImage: 'linear-gradient(90deg, transparent, var(--color-border-light), transparent)',
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 1.5s infinite',
+                }} />
               </div>
             ))}
           </div>
@@ -163,7 +307,7 @@ export function PaperList() {
           </div>
         )}
 
-        {!isLoading && !isError && papers?.length === 0 && (
+        {!isLoading && !isError && sortedPapers.length === 0 && (
           <div className="p-8 text-center">
             <p className="text-sm" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
               暂无论文
@@ -174,7 +318,7 @@ export function PaperList() {
           </div>
         )}
 
-        {papers?.map((p, idx) => (
+        {sortedPapers.map((p) => (
           <div
             key={p.id}
             className="group relative px-4 py-3 transition-all duration-200"
@@ -232,6 +376,7 @@ export function PaperList() {
                   >
                     {p.title || '未命名论文'}
                   </div>
+                  <RatingDots rating={p.rating ?? 0} onRate={(n) => handleRate(p.id, n)} />
                   <div
                     className="text-xs mt-1"
                     style={{
@@ -302,6 +447,33 @@ export function PaperList() {
           </div>
         ))}
       </div>
+
+      {/* Resize handle */}
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize select-none transition-opacity duration-150 z-10"
+        style={{
+          opacity: dragging ? 1 : 0.3,
+          background: dragging ? 'var(--color-accent)' : 'var(--color-border)',
+        }}
+        onMouseDown={onMouseDown}
+        onMouseEnter={(e) => {
+          if (!dragging) {
+            (e.target as HTMLElement).style.opacity = '0.7'
+            ;(e.target as HTMLElement).style.background = 'var(--color-accent)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!dragging) {
+            (e.target as HTMLElement).style.opacity = '0.3'
+            ;(e.target as HTMLElement).style.background = 'var(--color-border)'
+          }
+        }}
+      />
+
+      {/* Drag overlay to prevent text selection while resizing */}
+      {dragging && (
+        <div className="fixed inset-0 z-20 cursor-col-resize" />
+      )}
     </div>
   )
 }
