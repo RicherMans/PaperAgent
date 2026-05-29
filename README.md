@@ -33,17 +33,26 @@ Gemini 有 1M token 上下文，听起来很美好。但论文全文本身就有
 
 ## 安装
 
-### 从源码构建
+从 [Releases](https://github.com/happyTonakai/paper-agent/releases) 下载对应平台二进制：
 
 ```bash
-git clone https://github.com/happyTonakai/paper-agent.git
-cd paperagent
-just build
+# macOS (Apple Silicon)
+curl -L -o paperagent https://github.com/happyTonakai/paper-agent/releases/latest/download/paperagent_darwin_arm64
+chmod +x paperagent
+sudo mv paperagent /usr/local/bin/
+
+# macOS (Intel)
+curl -L -o paperagent https://github.com/happyTonakai/paper-agent/releases/latest/download/paperagent_darwin_amd64
+chmod +x paperagent
+sudo mv paperagent /usr/local/bin/
+
+# Linux (amd64)
+curl -L -o paperagent https://github.com/happyTonakai/paper-agent/releases/latest/download/paperagent_linux_amd64
+chmod +x paperagent
+sudo mv paperagent /usr/local/bin/
 ```
 
-构建产物是一个单二进制，内嵌前端静态资源（React SPA），运行时无需安装 Node.js。
-
-构建前需要安装 Go 1.25+ 和 Node.js（仅构建时需要，运行时不需）。
+二进制内嵌前端静态资源（React SPA），运行时无需安装 Node.js。
 
 ## 配置
 

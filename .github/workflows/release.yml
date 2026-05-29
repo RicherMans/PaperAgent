@@ -19,6 +19,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,9 +63,9 @@ jobs:
           LDFLAGS="-s -w -X main.version=${VERSION}"
           mkdir -p dist
 
-          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_darwin_arm64 .
-          GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_darwin_amd64 .
-          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperpaper_linux_amd64 .
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/paperagent_darwin_arm64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperagent_darwin_amd64 .
+          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/paperagent_linux_amd64 .
 
       - name: Create tag
         run: |
