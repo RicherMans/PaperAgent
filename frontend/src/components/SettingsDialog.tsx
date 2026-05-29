@@ -41,6 +41,14 @@ export function SettingsDialog() {
   const [promptsLoading, setPromptsLoading] = useState(false)
   const [promptsSaving, setPromptsSaving] = useState(false)
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isSettingsOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [isSettingsOpen, setSettingsOpen])
+
   useEffect(() => {
     if (!isSettingsOpen) return
     setLoading(true)
@@ -110,7 +118,7 @@ export function SettingsDialog() {
   const tabClass = (t: Tab) => `flex-1 text-center py-2 text-sm font-medium rounded-lg transition-colors ${tab === t ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false) }}>
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-sm font-semibold">⚙️ 设置</h2>
