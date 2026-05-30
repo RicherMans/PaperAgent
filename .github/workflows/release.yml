@@ -88,6 +88,7 @@ jobs:
           path: internal/server/frontend-dist/
 
       - name: Build
+        shell: bash
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
