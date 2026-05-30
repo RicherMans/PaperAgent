@@ -15,7 +15,8 @@ const repoURL = "https://github.com/happyTonakai/PaperAgent"
 
 // Options configures the systray behavior.
 type Options struct {
-	Port int
+	Port    int
+	Version string
 }
 
 // Run starts the system tray icon and blocks until the user quits.
@@ -37,7 +38,13 @@ func onReady(opts Options) {
 	// Left-click opens web UI directly
 	systray.SetOnTapped(func() { openBrowser(url) })
 
-	mAbout := systray.AddMenuItem("关于 PaperAgent", "AI 论文阅读助手")
+	mVersion := systray.AddMenuItem(opts.Version, opts.Version)
+	mVersion.Disable()
+
+	mAbout := systray.AddMenuItem("关于", "AI 论文阅读助手")
+
+	systray.AddSeparator()
+
 	mQuit := systray.AddMenuItem("退出", "退出 PaperAgent")
 
 	go func() {

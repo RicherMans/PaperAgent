@@ -99,7 +99,7 @@ func runSystray(cfg *config.Config) {
 	}
 
 	// Run systray (blocks until user quits)
-	systray.Run(systray.Options{Port: actualPort}, httpServer)
+	systray.Run(systray.Options{Port: actualPort, Version: version}, httpServer)
 }
 
 // parsePortFromAddr extracts the port number from an address string like ":8686" or "localhost:8686".
