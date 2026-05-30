@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
-	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -65,35 +64,6 @@ func main() {
 	}
 
 	runSystray(cfg)
-}
-
-func daemonize() {
-	args := make([]string, 0, len(os.Args)+1)
-	args = append(args, os.Args...)
-	args = append(args, "--daemon")
-
-	exe, err := os.Executable()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to find executable: %v\n", err)
-		os.Exit(1)
-	}
-
-	cmd := exec.Command(exe, args[1:]...)
-	cmd.Env = os.Environ()
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true,
-	}
-
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start background process: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("PaperAgent started in background.")
-	os.Exit(0)
 }
 
 func runSystray(cfg *config.Config) {
