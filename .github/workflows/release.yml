@@ -100,7 +100,7 @@ jobs:
       - name: Codesign (macOS)
         if: matrix.goos == 'darwin'
         shell: bash
-        run: codesign --force --deep --sign "-" --options runtime "dist/paperagent_${{ matrix.goos }}_${{ matrix.goarch }}"
+        run: codesign --force --deep --sign "-" "dist/paperagent_${{ matrix.goos }}_${{ matrix.goarch }}"
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
