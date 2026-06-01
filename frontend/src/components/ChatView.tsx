@@ -90,7 +90,7 @@ export function ChatView() {
     if (!el) return
     const handleScroll = () => {
       if (isAutoScrolling.current) return
-      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 5
       if (isNearBottom) {
         userScrolledUp.current = false
       } else if (isStreamingLocal || isPending) {
@@ -100,12 +100,6 @@ export function ChatView() {
     el.addEventListener('scroll', handleScroll, { passive: true })
     return () => el.removeEventListener('scroll', handleScroll)
   }, [isStreamingLocal, isPending])
-
-  useEffect(() => {
-    if (!isStreamingLocal && !isPending && !retryingSummary && retryingRound === null) {
-      scrollToBottom()
-    }
-  }, [paper?.messages?.length, scrollToBottom, isStreamingLocal, isPending, retryingSummary, retryingRound])
 
   useEffect(() => {
     if ((isStreamingLocal || isPending) && !userScrolledUp.current) {
