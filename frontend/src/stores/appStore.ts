@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Theme, FontSize } from '../types'
+import type { Theme, FontSize, FontFamily } from '../types'
 
 interface AppState {
   // Theme
@@ -10,6 +10,11 @@ interface AppState {
   fontSize: FontSize
   setFontSize: (size: FontSize) => void
   cycleFontSize: () => void
+
+  // Font family
+  fontFamily: FontFamily
+  setFontFamily: (ff: FontFamily) => void
+  cycleFontFamily: () => void
 
   // Content width
   contentWidth: 'full' | 'narrow'
@@ -77,11 +82,27 @@ export function applyTheme(theme: Theme) {
   }
 }
 
+// --- Font family ---
+
+function getInitialFontFamily(): FontFamily {
+  const stored = localStorage.getItem('paperagent-font-family')
+  if (stored === 'sans' || stored === 'serif') return stored
+  return 'serif'
+}
+
+function applyFontFamily(ff: FontFamily) {
+  if (ff === 'sans') {
+    document.documentElement.classList.add('font-sans')
+  } else {
+    document.documentElement.classList.remove('font-sans')
+  }
+}
+
 // --- Font size ---
 
 const FONT_SIZES: Record<FontSize, string> = {
-  small: '14px',
-  medium: '17px',
+  small: '16px',
+  medium: '18px',
   large: '20px',
 }
 
@@ -135,6 +156,21 @@ export const useAppStore = create<AppState>((set) => ({
     })
   },
 
+  fontFamily: getInitialFontFamily(),
+  setFontFamily: (ff) => {
+    localStorage.setItem('paperagent-font-family', ff)
+    applyFontFamily(ff)
+    set({ fontFamily: ff })
+  },
+  cycleFontFamily: () => {
+    set((s) => {
+      const next: FontFamily = s.fontFamily === 'serif' ? 'sans' : 'serif'
+      localStorage.setItem('paperagent-font-family', next)
+      applyFontFamily(next)
+      return { fontFamily: next }
+    })
+  },
+
   currentPaperId: null,
   setCurrentPaperId: (id) => set({ currentPaperId: id }),
 
@@ -182,3 +218,4 @@ export const useAppStore = create<AppState>((set) => ({
 // Apply initial values
 applyTheme(getInitialTheme())
 applyFontSize(getInitialFontSize())
+applyFontFamily(getInitialFontFamily())

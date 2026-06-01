@@ -11,6 +11,7 @@ import { useAppStore } from '../stores/appStore'
 import { MessageBubble } from './MessageBubble'
 import { RoundNav } from './RoundNav'
 import { FontSizeButton } from './FontSizeButton'
+import { FontFamilyButton } from './FontFamilyButton'
 import type { Message, Theme } from '../types'
 
 function getPdfUrl(sourceUrl: string): string {
@@ -344,6 +345,7 @@ export function ChatView() {
           >
             {theme === 'light' ? <Sun size={15} /> : theme === 'dark' ? <Moon size={15} /> : <Monitor size={15} />}
           </button>
+          <FontFamilyButton />
           <FontSizeButton />
           {paper?.source_url && (
             <a

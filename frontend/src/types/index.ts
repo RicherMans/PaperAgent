@@ -42,3 +42,5 @@ export interface SSEEvent {
 export type Theme = 'light' | 'dark' | 'system'
 
 export type FontSize = 'small' | 'medium' | 'large'
+
+export type FontFamily = 'serif' | 'sans'
