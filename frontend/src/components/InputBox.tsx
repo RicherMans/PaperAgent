@@ -200,11 +200,12 @@ export function InputBox() {
             onKeyDown={handleKeyDown}
             placeholder={isStreaming ? '正在生成回复...' : '输入问题，Shift+Enter 换行。输入 / 查看命令...'}
             disabled={isStreaming}
-            className="flex-1 resize-none rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 overflow-y-auto disabled:opacity-50"
+            className="flex-1 resize-none rounded-xl px-4 py-2.5 outline-none transition-all duration-200 overflow-y-auto disabled:opacity-50"
             style={{
               minHeight: 5 * 24,
               maxHeight: 10 * 24,
               fontFamily: 'var(--font-body)',
+              fontSize: 'var(--paper-font-size)',
               backgroundColor: 'var(--color-bg-inset)',
               color: 'var(--color-text)',
               border: '1px solid transparent',
