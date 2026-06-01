@@ -72,6 +72,7 @@ export function ChatView() {
   const answeringRound = useRef<number | null>(null)
   const userScrolledUp = useRef(false)
   const isAutoScrolling = useRef(false)
+  const retryCompletedRoundRef = useRef<number | null>(null)
 
   const isPending = pendingPaperId === currentPaperId
   const needsSummaryRetry = !isLoading && !isPending && !retryingSummary && paper && !paper.initial_summary
@@ -138,8 +139,6 @@ export function ChatView() {
       onChunk: (content) => setStreamingContent((prev) => prev + content),
       onDone: () => {
         setIsStreamingLocal(false)
-        setStreamingContent('')
-        setPendingUserQuestion(null)
         answeringRound.current = null
         refetch()
       },
@@ -150,6 +149,31 @@ export function ChatView() {
       },
     })
   }, [currentPaperId, isStreamingLocal, streamRequest, refetch, paper?.messages])
+
+  // Clean up local state when refetched data catches up after streaming/retry ends
+  useEffect(() => {
+    if (!paper) return
+    // Chat: clean up when the user's question appears in persisted messages
+    if (!isStreamingLocal && pendingUserQuestion) {
+      const found = paper.messages.some(
+        m => m.round_number === pendingUserRound && m.role === 'user'
+      )
+      if (found) {
+        setStreamingContent('')
+        setPendingUserQuestion(null)
+      }
+    }
+    // Retry: clean up when refetched data contains the retried round
+    if (!isStreamingLocal && retryingRound === null && retryCompletedRoundRef.current !== null && streamingContent) {
+      const found = paper.messages.some(
+        m => m.round_number === retryCompletedRoundRef.current
+      )
+      if (found) {
+        setStreamingContent('')
+        retryCompletedRoundRef.current = null
+      }
+    }
+  }, [paper?.messages, isStreamingLocal, pendingUserQuestion, pendingUserRound, retryingRound, streamingContent])
 
   const handleRetrySummary = useCallback(async () => {
     if (!currentPaperId) return
@@ -181,7 +205,7 @@ export function ChatView() {
       onChunk: (content) => setStreamingContent((prev) => prev + content),
       onDone: () => {
         setRetryingRound(null)
-        setStreamingContent('')
+        retryCompletedRoundRef.current = retryingRound
         refetch()
       },
       onError: (error) => {
@@ -448,8 +472,8 @@ export function ChatView() {
         ))}
         <div data-msg-end />
 
-        {/* PENDING USER QUESTION — show immediately before streaming AI response */}
-        {isStreamingLocal && pendingUserQuestion && (
+        {/* PENDING USER QUESTION — shown during streaming and until refetch catches up */}
+        {pendingUserQuestion && (
           <MessageBubble
             role="user"
             content={pendingUserQuestion}
@@ -457,11 +481,11 @@ export function ChatView() {
           />
         )}
 
-        {/* CHAT STREAM */}
-        {(isStreamingLocal || retryingRound !== null) && streamingContent && (
+        {/* CHAT STREAM — shown during streaming and until refetch catches up */}
+        {streamingContent && (
           <MessageBubble role="assistant" content={streamingContent} isStreaming />
         )}
-        {(isStreamingLocal && !streamingContent && pendingUserQuestion) && (
+        {(!streamingContent && pendingUserQuestion && isStreamingLocal) && (
           <div
             className="flex gap-3 px-5 py-4"
             style={{ borderBottom: '1px solid var(--color-border-light)' }}
