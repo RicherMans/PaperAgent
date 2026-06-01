@@ -4,7 +4,7 @@
 
 PaperAgent 是一个 AI 论文阅读助手。给它一篇论文（arXiv 链接、文件或粘贴），AI 生成详实、可复现级别的深度解析，随后进入多轮问答模式。所有对话持久化到本地，随时可以恢复。
 
-**默认启动为 Web UI 模式**（浏览器自动打开），添加 `--tui` 参数进入终端模式。
+**默认启动为 Web UI 模式**（浏览器自动打开）。
 
 ## Why
 
@@ -93,11 +93,8 @@ ui:
 ### 启动
 
 ```bash
-# Web UI 模式（默认）：浏览器自动打开，端口被占用时自动 +1
+# 启动 Web UI（默认）：浏览器自动打开，端口被占用时自动 +1
 paperagent
-
-# 终端 TUI 模式
-paperagent --tui
 
 # 开发模式：Go 后端 + Vite HMR 前端，浏览器访问 http://localhost:5173
 just dev
@@ -119,7 +116,7 @@ PAPER_ADDR=":9000" paperagent
 | `/config` | 打开设置（主题切换） |
 | `/help` | 显示帮助 |
 
-> **注意**：当前 Web UI 主要通过 URL（arXiv）来加载论文。终端模式 (`paperagent --tui`) 仍支持文件路径和标准输入粘贴。
+> **注意**：目前 Web UI 主要通过 URL（arXiv）来加载论文。
 
 ## 架构
 
@@ -223,7 +220,7 @@ just clean
 | SSE 流式 | Server-Sent Events |
 | LLM API | OpenAI 兼容接口 |
 | 持久化 | JSON 文件 (~/.paperagent/papers/) |
-| 旧架构 | Bubble Tea 2 (保留，可通过 `paperagent --tui` 启动) |
+
 
 ## 许可
 

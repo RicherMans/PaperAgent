@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PaperAgent is a terminal-based AI paper reading assistant built in Go. Users provide an academic paper (file, URL, or paste), and the AI generates a detailed summary, then enters multi-round Q&A mode. The UI and documentation are in Chinese.
+PaperAgent is an AI paper reading assistant built in Go with a Web UI (React SPA). Users provide an academic paper (URL or paste), and the AI generates a detailed summary, then enters multi-round Q&A mode. The UI and documentation are in Chinese.
 
 ## Build & Run
 
@@ -32,13 +32,13 @@ go vet ./...
 
 ## Architecture
 
-**Tech stack**: Go 1.25+, Bubble Tea (TUI framework), Glamour (Markdown rendering), Lipgloss (styling), YAML config, JSON persistence.
+**Tech stack**: Go 1.25+, React 19 + TypeScript + Tailwind CSS (frontend), YAML config, JSON persistence.
 
 **Core design principle**: The full paper text always stays in the LLM context (L1). Only the last 5 rounds of Q&A are retained (L2). The initial summary does NOT enter subsequent conversation context. This prevents hallucination from conversation history drowning out paper details.
 
 ### Two-phase state machine
 
-- **INIT phase**: Paper content + `heavy.txt` prompt sent to API. Streams a detailed Markdown summary to the viewport. Title extracted async via light model.
+- **INIT phase**: Paper content + `heavy.txt` prompt sent to API. Streams a detailed Markdown summary via SSE. Title extracted async via light model.
 - **CHAT phase**: Each question sends paper content + `light.txt` prompt + last 5 rounds.
 
 ### Module layout (`internal/`)
@@ -49,7 +49,6 @@ go vet ./...
 | `api/` | OpenAI-compatible HTTP client. `ChatStream()` returns `<-chan StreamChunk` via SSE goroutine. `ExtractTitle()` is an async helper using light model. |
 | `session/` | `Paper` and `Message` data models. Thread-safe `Manager` (mutex-protected) for CRUD + persistence to `~/.paperagent/papers/{id}.json`. Uses UUID-based session IDs. |
 | `prompt/` | `//go:embed` templates (`heavy.txt`, `light.txt`, `summarize.txt`). `Get(name, fallback)` checks user override at `~/.paperagent/prompts/{name}.txt` first. |
-| `tui/` | Bubble Tea Elm architecture. `model.go` (state), `update.go` (commands & events), `view.go` (rendering), `selection.go` (mouse text selection). Three modes: Normal, Input, List. |
 | `urlparse/` | `FetchURL()` tries external `arxiv2text` binary first, falls back to HTTP GET. Supports arxiv URL normalization and PDF download. `LoadFile()` reads with `~` expansion. |
 | `export/` | `ExportToObsidian()` writes Markdown with YAML frontmatter to Obsidian vault. Customizable template at `~/.paperagent/prompts/export.md`. |
 
@@ -64,23 +63,7 @@ go vet ./...
 
 ### Entry point
 
-`main.go` loads config, checks API key, creates TUI model, optionally loads paper from CLI arg, runs Bubble Tea program.
-
-### UX features
-
-- **Terminal title**: Shows paper title or URL in terminal tab while app is running
-- **Mouse selection**: Text can be selected with mouse for copying
-- **Export feedback**: `/export` shows status bar message instead of replacing conversation view
-- **Round navigation**: `/list` shows first line of each user question truncated to 80 chars
-
-## Key Commands (in-app)
-
-`/new`, `/resume`, `/list`, `/open`, `/delete`, `/edit`, `/del`, `/summarize`, `/export`, `/model`, `/config`, `/help`, `/quit`
-
-- `/resume` — Open saved paper sessions (replaces old /list for session browsing)
-- `/list` — Jump list for current paper's Q&A rounds
-- Tab completion available for command names
-- Double Ctrl+C required to quit (prevents accidental exit)
+`main.go` loads config, checks API key, starts HTTP server with embedded frontend, and runs system tray.
 
 ## Token estimation
 

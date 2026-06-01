@@ -10,22 +10,16 @@ import (
 	"runtime"
 	"strconv"
 
-	tea "charm.land/bubbletea/v2"
-
 	"github.com/happyTonakai/paperagent/internal/config"
 	"github.com/happyTonakai/paperagent/internal/server"
-	"github.com/happyTonakai/paperagent/internal/session"
 	"github.com/happyTonakai/paperagent/internal/systray"
-	"github.com/happyTonakai/paperagent/internal/tui"
-	"github.com/happyTonakai/paperagent/internal/urlparse"
 )
-
-var tuiMode = flag.Bool("tui", false, "Run in terminal TUI mode instead of web UI")
-var versionFlag = flag.Bool("version", false, "Print version and exit")
-var daemonFlag = flag.Bool("daemon", false, "internal: already running as background daemon")
 
 // version is set via ldflags at build time: -ldflags "-X main.version=v1.2.3"
 var version = "dev"
+
+var versionFlag = flag.Bool("version", false, "Print version and exit")
+var daemonFlag = flag.Bool("daemon", false, "internal: already running as background daemon")
 
 func main() {
 	flag.Parse()
@@ -49,11 +43,6 @@ func main() {
 
 	os.MkdirAll(config.PapersDir(), 0755)
 	os.MkdirAll(config.PromptsDir(), 0755)
-
-	if *tuiMode {
-		runTUI(cfg)
-		return
-	}
 
 	if !*daemonFlag {
 		daemonize()
@@ -107,7 +96,6 @@ func runSystray(cfg *config.Config) {
 func parsePortFromAddr(addr string) int {
 	_, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
-		// Try parsing as bare port if SplitHostPort fails
 		return 0
 	}
 	port, err := strconv.Atoi(portStr)
@@ -155,31 +143,4 @@ func openBrowser(url string) {
 		return
 	}
 	_ = cmd.Start()
-}
-
-func runTUI(cfg *config.Config) {
-	m := tui.NewModel(cfg)
-
-	if flag.NArg() > 0 {
-		input := flag.Arg(0)
-		var content string
-
-		if arxivURL, _, ok := urlparse.NormalizeArxivInput(input); ok {
-			content, _ = urlparse.FetchURL(arxivURL)
-		} else if urlparse.IsURL(input) {
-			content, _ = urlparse.FetchURL(input)
-		} else {
-			content, _ = urlparse.LoadFile(input)
-		}
-
-		if content != "" {
-			p := session.NewPaper(content, input)
-			m.LoadPaper(p)
-		}
-	}
-
-	if _, err := tea.NewProgram(m).Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
 }
