@@ -81,7 +81,6 @@ export function ChatView() {
     if (containerRef.current) {
       isAutoScrolling.current = true
       containerRef.current.scrollTop = containerRef.current.scrollHeight
-      userScrolledUp.current = false
       requestAnimationFrame(() => { isAutoScrolling.current = false })
     }
   }, [])
@@ -89,6 +88,7 @@ export function ChatView() {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+
     const handleScroll = () => {
       if (isAutoScrolling.current) return
       const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 5
@@ -99,7 +99,20 @@ export function ChatView() {
       }
     }
     el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => el.removeEventListener('scroll', handleScroll)
+
+    // Wheel fires before scroll — catches user intent early, immune to isAutoScrolling
+    const handleWheel = (e: WheelEvent) => {
+      // deltaY > 0 = scroll down, deltaY < 0 = scroll up
+      if (e.deltaY < 0 && (isStreamingLocal || isPending)) {
+        userScrolledUp.current = true
+      }
+    }
+    el.addEventListener('wheel', handleWheel, { passive: true })
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll)
+      el.removeEventListener('wheel', handleWheel)
+    }
   }, [isStreamingLocal, isPending])
 
   useEffect(() => {
