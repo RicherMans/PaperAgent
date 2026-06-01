@@ -49,6 +49,12 @@ interface AppState {
   setNewPaperOpen: (v: boolean) => void
   isSettingsOpen: boolean
   setSettingsOpen: (v: boolean) => void
+  isLogOpen: boolean
+  setLogOpen: (v: boolean) => void
+
+  // Connection
+  connected: boolean
+  setConnected: (v: boolean) => void
 
   // Input
   inputValue: string
@@ -192,12 +198,17 @@ export const useAppStore = create<AppState>((set) => ({
   setNewPaperOpen: (v) => set({ isNewPaperOpen: v }),
   isSettingsOpen: false,
   setSettingsOpen: (v) => set({ isSettingsOpen: v }),
+  isLogOpen: false,
+  setLogOpen: (v) => set({ isLogOpen: v }),
 
   inputValue: '',
   setInputValue: (v) => set({ inputValue: v }),
 
   sendQuestion: null,
   setSendQuestion: (fn) => set({ sendQuestion: fn }),
+
+  connected: true,
+  setConnected: (v) => set({ connected: v }),
 
   contentWidth: getInitialContentWidth(),
   toggleContentWidth: () => {

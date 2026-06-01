@@ -6,10 +6,13 @@ import { InputBox } from './components/InputBox'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { NewPaperDialog } from './components/NewPaperDialog'
 import { SettingsDialog } from './components/SettingsDialog'
+import { LogDialog } from './components/LogDialog'
+import { useConnection } from './hooks/useConnection'
 import { useAppStore, applyTheme } from './stores/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 
 export default function App() {
+  useConnection()
   const qc = useQueryClient()
   const abortRef = useRef<AbortController | null>(null)
 
@@ -160,6 +163,7 @@ export default function App() {
 
       <NewPaperDialog />
       <SettingsDialog />
+      <LogDialog />
 
       <Toaster
         position="top-right"

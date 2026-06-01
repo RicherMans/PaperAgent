@@ -57,6 +57,7 @@ export function ChatView() {
     currentPaperId,
     pendingPaperId, pendingSummary, pendingError, clearPending,
     theme, setTheme, contentWidth, toggleContentWidth,
+    connected,
   } = useAppStore()
   const { data: paper, isLoading, refetch } = usePaper(currentPaperId)
   const { streamRequest } = useSSE()
@@ -342,13 +343,24 @@ export function ChatView() {
         }}
       >
         <h2
-          className="text-sm font-semibold truncate flex-1"
+          className="text-sm font-semibold truncate flex-1 flex items-center gap-2"
           style={{
             fontFamily: 'var(--font-display)',
             color: 'var(--color-text)',
             letterSpacing: '-0.01em',
           }}
         >
+          {!connected && (
+            <span
+              className="inline-block rounded-full flex-shrink-0 animate-pulse"
+              style={{
+                width: 7,
+                height: 7,
+                backgroundColor: 'var(--color-danger)',
+              }}
+              title="与服务器断开连接"
+            />
+          )}
           {paper?.title || '加载中...'}
         </h2>
 

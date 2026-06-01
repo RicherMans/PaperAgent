@@ -856,6 +856,23 @@ func (s *Server) handleSummarizeExport(w http.ResponseWriter, r *http.Request) {
 
 // --- Helpers ---
 
+func (s *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+		limit = l
+	}
+	entries := s.logBuf.Recent(limit)
+	if entries == nil {
+		entries = []LogEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"logs": entries})
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (s *Server) fetchPaperContent(req newPaperRequest) (content string, sourceURL string, err error) {
 	if req.URL != "" {
 		sourceURL = req.URL

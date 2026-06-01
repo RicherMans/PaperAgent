@@ -22,13 +22,17 @@ type Server struct {
 	api *api.Client
 	mux *http.ServeMux
 	paperLocks sync.Map
+	logBuf *logBuffer
 }
 
 func New(cfg *config.Config) *Server {
+	lb := newLogBuffer()
+	initLogCapture(lb)
 	s := &Server{
-		cfg: cfg,
-		api: api.NewClient(cfg),
-		mux: http.NewServeMux(),
+		cfg:    cfg,
+		api:    api.NewClient(cfg),
+		mux:    http.NewServeMux(),
+		logBuf: lb,
 	}
 	s.registerRoutes()
 	return s
@@ -63,6 +67,8 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
 	mux.HandleFunc("GET /api/prompts", s.handleGetPrompts)
 	mux.HandleFunc("POST /api/prompts", s.handleSavePrompts)
+	mux.HandleFunc("GET /api/logs", s.handleGetLogs)
+	mux.HandleFunc("GET /api/health", s.handleHealth)
 
 	s.registerStatic()
 }
