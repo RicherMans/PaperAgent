@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Toaster } from 'sonner'
+import { useEffect, useRef } from 'react'
+import { Toaster, toast } from 'sonner'
 import { PaperList } from './components/PaperList'
 import { ChatView } from './components/ChatView'
 import { InputBox } from './components/InputBox'
@@ -7,8 +7,131 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { NewPaperDialog } from './components/NewPaperDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { useAppStore, applyTheme } from './stores/appStore'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function App() {
+  const qc = useQueryClient()
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlToOpen = params.get('url')
+    const paperIdToOpen = params.get('open')
+
+    if (urlToOpen) {
+      window.history.replaceState({}, '', '/')
+      createPaperFromUrl(urlToOpen)
+    } else if (paperIdToOpen) {
+      window.history.replaceState({}, '', '/')
+      useAppStore.getState().setCurrentPaperId(paperIdToOpen)
+    }
+
+    async function createPaperFromUrl(url: string) {
+      const controller = new AbortController()
+      abortRef.current = controller
+      const timeoutId = setTimeout(() => controller.abort(), 60000)
+
+      const {
+        setCurrentPaperId,
+        setPendingPaperId,
+        appendPendingSummary,
+        setPendingError,
+        clearPending,
+      } = useAppStore.getState()
+
+      try {
+        toast.loading('正在加载论文...')
+
+        const res = await fetch('/api/papers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+          signal: controller.signal,
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error((errData as { error?: string }).error || `HTTP ${res.status}`)
+        }
+
+        const contentType = res.headers.get('content-type') || ''
+
+        if (contentType.includes('text/event-stream')) {
+          const reader = res.body?.getReader()
+          if (!reader) throw new Error('No response body')
+
+          const decoder = new TextDecoder()
+          let buffer = ''
+          let paperId = ''
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+
+            for (const line of lines) {
+              const trimmedLine = line.trim()
+              if (!trimmedLine.startsWith('data: ')) continue
+
+              const jsonStr = trimmedLine.slice(6)
+              try {
+                const evt = JSON.parse(jsonStr)
+                switch (evt.type) {
+                  case 'created':
+                    if (evt.paper_id) {
+                      paperId = evt.paper_id
+                      setPendingPaperId(paperId)
+                      setCurrentPaperId(paperId)
+                      toast.dismiss()
+                      qc.invalidateQueries({ queryKey: ['papers'] })
+                    }
+                    break
+                  case 'chunk':
+                    if (evt.content) appendPendingSummary(evt.content)
+                    break
+                  case 'title':
+                    if (paperId) {
+                      qc.invalidateQueries({ queryKey: ['papers'] })
+                      qc.invalidateQueries({ queryKey: ['paper', paperId] })
+                    }
+                    break
+                  case 'done':
+                    clearPending()
+                    break
+                  case 'error':
+                    setPendingError(evt.error || 'Unknown error')
+                    toast.error(evt.error || '摘要生成失败')
+                    break
+                }
+              } catch { /* skip */ }
+            }
+          }
+        } else {
+          const data = await res.json()
+          if (data.id) {
+            qc.invalidateQueries({ queryKey: ['papers'] })
+            setCurrentPaperId(data.id)
+            toast.dismiss()
+            toast.success('论文已加载')
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        const msg = err instanceof Error ? err.message : '加载失败'
+        toast.error(msg)
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
+
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => {

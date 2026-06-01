@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaperAgent 扩展选项</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #666; margin-bottom: 24px; line-height: 1.5; }
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    input[type="number"] {
+      width: 120px;
+      padding: 8px 12px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="number"]:focus {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+    }
+    .hint {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    button {
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+    button.primary {
+      background: #4f46e5;
+      color: #fff;
+    }
+    button.primary:hover { background: #4338ca; }
+    button.secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    button.secondary:hover { background: #d1d5db; }
+    #status {
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    #status.success { color: #059669; }
+    #status.error { color: #dc2626; }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot.running { background: #059669; }
+    .dot.stopped { background: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>PaperAgent 扩展选项</h1>
+
+  <div id="statusBar" class="status-row">
+    <span id="statusDot" class="dot"></span>
+    <span id="statusText">检查中...</span>
+  </div>
+
+  <label for="customPort">自定义端口</label>
+  <input type="number" id="customPort" min="1" max="65535" placeholder="留空则自动探测">
+  <div class="hint">
+    如果你通过 <code>PAPER_ADDR</code> 环境变量指定了非默认端口（如 1234），请在此填写。
+    留空则自动探测 8686～8785 端口范围。
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="saveBtn">保存</button>
+    <button class="secondary" id="clearBtn">清除</button>
+    <span id="saveStatus"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
