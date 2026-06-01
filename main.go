@@ -75,10 +75,18 @@ func runSystray(cfg *config.Config) {
 	fmt.Printf("PaperAgent server starting on %s\n", url)
 
 	// Start HTTP server in background goroutine
+	httpErrCh := make(chan error, 1)
 	go func() {
 		if err := httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-			os.Exit(1)
+			httpErrCh <- err
+		}
+	}()
+
+	// Monitor HTTP server error and shut down gracefully
+	go func() {
+		if err := <-httpErrCh; err != nil {
+			fmt.Fprintf(os.Stderr, "\nServer error: %v\n", err)
+			systray.Quit()
 		}
 	}()
 
@@ -89,6 +97,17 @@ func runSystray(cfg *config.Config) {
 
 	// Run systray (blocks until user quits)
 	systray.Run(systray.Options{Port: actualPort, Version: version}, httpServer)
+
+	// After systray returns (either from Quit menu or signal), do final cleanup.
+	// If we exited due to an HTTP error, propagate it.
+	select {
+	case err := <-httpErrCh:
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Exiting due to server error: %v\n", err)
+			os.Exit(1)
+		}
+	default:
+	}
 }
 
 // parsePortFromAddr extracts the port number from an address string like ":8686" or "localhost:8686".

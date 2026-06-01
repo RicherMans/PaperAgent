@@ -10,6 +10,12 @@ import (
 )
 
 func daemonize() {
+	// When PAPER_FOREGROUND is set (e.g. in dev mode), skip daemonization
+	// so the process stays attached to the terminal and receives Ctrl+C.
+	if os.Getenv("PAPER_FOREGROUND") != "" {
+		return
+	}
+
 	args := make([]string, 0, len(os.Args)+1)
 	args = append(args, os.Args...)
 	args = append(args, "--daemon")

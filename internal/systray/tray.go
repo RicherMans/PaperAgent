@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 
 	"fyne.io/systray"
@@ -47,12 +50,21 @@ func onReady(opts Options) {
 
 	mQuit := systray.AddMenuItem("退出", "退出 PaperAgent")
 
+	// Signal handling: gracefully quit on SIGINT (Ctrl+C) or SIGTERM (pkill).
+	// This ensures the systray icon is properly removed on forced exit.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
 	go func() {
 		for {
 			select {
 			case <-mAbout.ClickedCh:
 				openBrowser(repoURL)
 			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			case sig := <-sigCh:
+				fmt.Printf("\nReceived signal %v, shutting down...\n", sig)
 				systray.Quit()
 				return
 			}
@@ -64,6 +76,11 @@ func onExit(httpServer *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	httpServer.Shutdown(ctx)
+}
+
+// Quit gracefully stops the systray (called from main.go for HTTP errors).
+func Quit() {
+	systray.Quit()
 }
 
 func openBrowser(url string) {
