@@ -11,12 +11,14 @@ interface CmdEntry {
 }
 
 export function InputBox() {
-  const { currentPaperId, isStreaming, inputValue, setInputValue, setSettingsOpen, sendQuestion, contentWidth } = useAppStore()
+  const { currentPaperId, isStreaming, setSettingsOpen, sendQuestion, contentWidth } = useAppStore()
   const exportPaper = useExportPaper()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isComposingRef = useRef(false)
   const [showCommands, setShowCommands] = useState(false)
   const [selectedCmdIdx, setSelectedCmdIdx] = useState(0)
+  // Local state for command autocomplete UI only — textarea itself is uncontrolled via ref
+  const [localValue, setLocalValue] = useState('')
 
   const commands: CmdEntry[] = [
     {
@@ -44,50 +46,62 @@ export function InputBox() {
     },
   ]
 
-  const filteredCommands = inputValue.startsWith('/')
-    ? commands.filter((c) => c.name.startsWith(inputValue.trim()))
+  const filteredCommands = localValue.startsWith('/')
+    ? commands.filter((c) => c.name.startsWith(localValue.trim()))
     : []
 
   useEffect(() => {
-    if (inputValue.startsWith('/') && filteredCommands.length > 0) {
+    if (localValue.startsWith('/') && filteredCommands.length > 0) {
       setShowCommands(true)
       setSelectedCmdIdx(0)
     } else {
       setShowCommands(false)
     }
-  }, [inputValue, filteredCommands.length])
-
-  useEffect(() => {
-    const el = inputRef.current
-    if (el) {
-      el.style.height = 'auto'
-      el.style.height = Math.min(Math.max(el.scrollHeight, 5 * 24), 10 * 24) + 'px'
-    }
-  }, [inputValue])
+  }, [localValue, filteredCommands.length])
 
   // Ref to keep latest commands accessible from stable callbacks
   const commandsRef = useRef(commands)
   commandsRef.current = commands
 
   const handleSend = useCallback(() => {
-    const value = inputRef.current?.value ?? ''
-    const trimmed = value.trim()
+    const el = inputRef.current
+    if (!el) return
+    const trimmed = el.value.trim()
     if (!trimmed || isStreaming || !currentPaperId) return
 
     if (trimmed.startsWith('/')) {
       const cmd = commandsRef.current.find((c) => c.name === trimmed)
       if (cmd) {
         cmd.action()
-        setInputValue('')
+        el.value = ''
+        setLocalValue('')
         return
       }
     }
 
     if (sendQuestion) {
       sendQuestion(trimmed)
-      setInputValue('')
+      el.value = ''
+      setLocalValue('')
     }
-  }, [isStreaming, currentPaperId, setInputValue, sendQuestion])
+  }, [isStreaming, currentPaperId, sendQuestion])
+
+  // Auto-resize function — called from onInput, avoids useEffect layout thrashing
+  const autoResize = useCallback((el: HTMLTextAreaElement) => {
+    el.style.height = 'auto'
+    el.style.height = Math.min(Math.max(el.scrollHeight, 5 * 24), 10 * 24) + 'px'
+  }, [])
+
+  const handleInput = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget
+    autoResize(el)
+    // Only trigger React re-render when command autocomplete may be active.
+    // Normal text input is entirely native — uncontrolled textarea handles it.
+    const val = el.value
+    if (val.startsWith('/') || localValue.startsWith('/')) {
+      setLocalValue(val)
+    }
+  }, [autoResize, localValue])
 
   const handleCompositionStart = useCallback(() => {
     isComposingRef.current = true
@@ -115,7 +129,12 @@ export function InputBox() {
         e.preventDefault()
         const cmd = cmds[selectedCmdIdx]
         if (cmd) {
-          setInputValue(cmd.name)
+          const el = inputRef.current
+          if (el) {
+            el.value = cmd.name
+            setLocalValue(cmd.name)
+            autoResize(el)
+          }
           setShowCommands(false)
         }
       } else if (e.key === 'Escape') {
@@ -132,7 +151,7 @@ export function InputBox() {
       e.preventDefault()
       handleSend()
     }
-  }, [showCommands, selectedCmdIdx, setInputValue, handleSend])
+  }, [showCommands, selectedCmdIdx, handleSend, autoResize])
 
   if (!currentPaperId) return null
 
@@ -174,7 +193,12 @@ export function InputBox() {
                     : 'var(--color-text)',
                 }}
                 onClick={() => {
-                  setInputValue(cmd.name)
+                  const el = inputRef.current
+                  if (el) {
+                    el.value = cmd.name
+                    setLocalValue(cmd.name)
+                    autoResize(el)
+                  }
                   setShowCommands(false)
                   inputRef.current?.focus()
                 }}
@@ -193,8 +217,8 @@ export function InputBox() {
         <div className="flex items-end gap-2.5">
           <textarea
             ref={inputRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            defaultValue=""
+            onInput={handleInput}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
@@ -222,7 +246,7 @@ export function InputBox() {
           />
           <button
             onClick={handleSend}
-            disabled={isStreaming || !inputValue.trim()}
+            disabled={isStreaming}
             className="flex-shrink-0 p-2.5 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
             style={{
               backgroundColor: 'var(--color-accent)',
