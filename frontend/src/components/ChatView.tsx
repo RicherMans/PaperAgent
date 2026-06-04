@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import { RefreshCw, Maximize2, Minimize2, Sun, Moon, Monitor } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePaper } from '../hooks/usePapers'
 import { useSSE } from '../hooks/useSSE'
 import { useAppStore } from '../stores/appStore'
@@ -60,6 +61,7 @@ export function ChatView() {
     connected,
   } = useAppStore()
   const { data: paper, isLoading, refetch } = usePaper(currentPaperId)
+  const qc = useQueryClient()
   const { streamRequest } = useSSE()
   const containerRef = useRef<HTMLDivElement>(null)
   const [streamingContent, setStreamingContent] = useState('')
@@ -160,6 +162,7 @@ export function ChatView() {
         setIsStreamingLocal(false)
         answeringRound.current = null
         refetch()
+        qc.invalidateQueries({ queryKey: ['papers'] })
       },
       onError: (error) => {
         setStreamError(error)
@@ -212,6 +215,7 @@ export function ChatView() {
         setRetryingSummary(false)
         setRetrySummaryContent('')
         refetch()
+        qc.invalidateQueries({ queryKey: ['papers'] })
       },
       onError: (error) => {
         setRetryingSummary(false)
@@ -233,6 +237,7 @@ export function ChatView() {
         setRetryingRound(null)
         retryCompletedRoundRef.current = retryingRound
         refetch()
+        qc.invalidateQueries({ queryKey: ['papers'] })
       },
       onError: (error) => {
         setStreamError(error)
