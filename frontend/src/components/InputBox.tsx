@@ -365,6 +365,7 @@ export function InputBox() {
           <textarea
             ref={inputRef}
             defaultValue=""
+            autoFocus
             onInput={handleInput}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
