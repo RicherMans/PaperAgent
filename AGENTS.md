@@ -51,11 +51,14 @@ Published via GitHub Actions (`release.yml`, workflow_dispatch). Do NOT create t
 3. **Trigger the release workflow**
 
    ```bash
-   # Ensure no conflicting tag exists first
-   gh workflow run release.yml -f bump=patch -f release_notes='你的release notes markdown'
+   gh workflow run release.yml -f version=v1.1.1 -f release_notes='你的release notes markdown'
    ```
 
-   `bump` 可选 `patch` / `minor` / `major`。如果 `release_notes` 传空字符串，action 会自动从 commits 生成。
+   推荐**总是传** `version` 明确指定版本，避免 auto-bump 受脏 tag 影响。
+   如果确认没有脏 tag 也可以只用 `bump`：`-f bump=patch`。
+   `release_notes` 传空字符串时 action 会自动从 commits 生成。
+
+   > ⚠️ 绝对不要手动 `gh release create` 或 `git tag` + `git push`，会留下脏 tag 干扰 auto-bump。
 
 4. **Wait** for action to finish at https://github.com/happyTonakai/PaperAgent/actions
 

@@ -3,8 +3,13 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Explicit version (e.g. v1.1.1). Overrides auto-bump."
+        required: false
+        type: string
+        default: ""
       bump:
-        description: "Version bump"
+        description: "Auto version bump (used only when 'version' is empty)"
         required: true
         type: choice
         default: "patch"
@@ -44,6 +49,12 @@ jobs:
       - name: Compute next version
         id: version
         run: |
+          CUSTOM="${{ inputs.version }}"
+          if [ -n "$CUSTOM" ]; then
+            echo "Using explicit version: $CUSTOM"
+            echo "tag=$CUSTOM" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git fetch --tags
           LATEST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
           if [ -z "$LATEST" ]; then
