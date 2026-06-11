@@ -20,8 +20,10 @@ func HTMLToMarkdown(html string) string {
 	title := extractTitle(html)
 
 	// 2. Extract all tables and replace with placeholders
+	// First: figure-wrapped tables (<figure class="ltx_table">)
+	// Then: bare tables (<table class="ltx_tabular"> not inside a figure)
 	tables := extractAllTables(html)
-	html = replaceTableFigures(html)
+	html = replaceAllTablePlaceholders(html)
 
 	// 3. Extract body content (inside ltx_page_content div, before </article>)
 	html = extractArticleBody(html)
@@ -190,6 +192,7 @@ func extractArticleBody(html string) string {
 var tableFigureRe = regexp.MustCompile(`(?is)<figure[^>]*class="[^"]*ltx_table[^"]*"[^>]*>(.*?)</figure>`)
 var tableCaptionRe = regexp.MustCompile(`(?is)<figcaption[^>]*>(.*?)</figcaption>`)
 var tabularRe = regexp.MustCompile(`(?is)<table\s+class="ltx_tabular[^"]*"[^>]*>(.*?)</table>`)
+var bareTableRe = regexp.MustCompile(`(?is)<table\s+class="ltx_tabular[^"]*"[^>]*>.*?</table>`)
 var trRe = regexp.MustCompile(`(?is)<tr[^>]*>(.*?)</tr>`)
 var tdRe = regexp.MustCompile(`(?is)<td[^>]*>(.*?)</td>`)
 var wsRe = regexp.MustCompile(`\s+`)
@@ -201,31 +204,50 @@ type tableInfo struct {
 
 func extractAllTables(html string) []tableInfo {
 	var tables []tableInfo
-	matches := tableFigureRe.FindAllStringSubmatch(html, -1)
-	for _, m := range matches {
+
+	// Step 1: figure-wrapped tables (<figure class="ltx_table">)
+	figMatches := tableFigureRe.FindAllStringSubmatch(html, -1)
+	for _, m := range figMatches {
 		tableMD := convertTableToMarkdown(m[0])
 		tables = append(tables, tableInfo{
 			placeholder: fmt.Sprintf("__TABLE_PLACEHOLDER_%d__", len(tables)),
 			markdown:    tableMD,
 		})
 	}
+
+	// Step 2: bare tables (<table class="ltx_tabular"> not inside a <figure>)
+	// Remove figure-wrapped tables first to avoid double-counting
+	htmlStripped := tableFigureRe.ReplaceAllLiteralString(html, "")
+	bareMatches := bareTableRe.FindAllStringSubmatch(htmlStripped, -1)
+	for _, m := range bareMatches {
+		tableMD := convertTableToMarkdown(m[0])
+		tables = append(tables, tableInfo{
+			placeholder: fmt.Sprintf("__TABLE_PLACEHOLDER_%d__", len(tables)),
+			markdown:    tableMD,
+		})
+	}
+
 	return tables
 }
 
-func replaceTableFigures(html string) string {
-	matches := tableFigureRe.FindAllStringSubmatchIndex(html, -1)
-	if len(matches) == 0 {
-		return html
-	}
-	var parts []string
-	lastEnd := 0
-	for i, loc := range matches {
-		parts = append(parts, html[lastEnd:loc[0]])
-		parts = append(parts, fmt.Sprintf("__TABLE_PLACEHOLDER_%d__", i))
-		lastEnd = loc[1]
-	}
-	parts = append(parts, html[lastEnd:])
-	return strings.Join(parts, "")
+func replaceAllTablePlaceholders(html string) string {
+	counter := 0
+
+	// Step 1: Replace figure-wrapped tables (<figure class="ltx_table">)
+	result := tableFigureRe.ReplaceAllStringFunc(html, func(m string) string {
+		p := fmt.Sprintf("__TABLE_PLACEHOLDER_%d__", counter)
+		counter++
+		return p
+	})
+
+	// Step 2: Replace bare tables (<table class="ltx_tabular"> not yet replaced)
+	result = bareTableRe.ReplaceAllStringFunc(result, func(m string) string {
+		p := fmt.Sprintf("__TABLE_PLACEHOLDER_%d__", counter)
+		counter++
+		return p
+	})
+
+	return result
 }
 
 func convertTableToMarkdown(figureHTML string) string {
