@@ -506,10 +506,10 @@ func convertLatexTokens(s string) (string, bool) {
 			i = n
 
 		case ch == '{':
-			// Group: try to convert recursively
+			// Standalone group (not consumed by a command handler above):
+			// preserve braces and convert content recursively.
 			inner, endPos := extractMatchingBrace(s, i)
 			if endPos <= i {
-				// Keep raw group if we can't parse
 				result.WriteByte('{')
 				i++
 				continue
@@ -518,7 +518,9 @@ func convertLatexTokens(s string) (string, bool) {
 			if !ok {
 				return "", false
 			}
+			result.WriteByte('{')
 			result.WriteString(conv)
+			result.WriteByte('}')
 			i = endPos
 
 		case ch == '}':
@@ -531,6 +533,30 @@ func convertLatexTokens(s string) (string, bool) {
 			i++
 			cmd, n := parseCommand(s, i)
 			if cmd == "" {
+				// Non-letter command: spaces and escaped braces
+				if i < len(s) {
+					switch s[i] {
+					case ',', ':', ';':
+						result.WriteByte(' ') // thin/medium/thick space → space
+						i++
+						continue
+					case '!':
+						i++ // negative thin space → omit
+						continue
+					case ' ':
+						result.WriteByte(' ') // escaped space
+						i++
+						continue
+					case '{':
+						result.WriteByte('{') // \{ → literal {
+						i++
+						continue
+					case '}':
+						result.WriteByte('}') // \} → literal }
+						i++
+						continue
+					}
+				}
 				return "", false // lone backslash or non-alpha command
 			}
 
@@ -555,6 +581,44 @@ func convertLatexTokens(s string) (string, bool) {
 				result.WriteString("**")
 				i = endPos
 
+			} else if cmd == "mathbb" {
+				// \mathbb{...} → plain text (strip command, keep content)
+				arg, endPos, ok := consumeGroup(s, n)
+				if !ok {
+					return "", false
+				}
+				convArg, ok := convertLatexTokens(arg)
+				if !ok {
+					return "", false
+				}
+				result.WriteString(convArg)
+				i = endPos
+
+			} else if cmd == "tilde" {
+				// \tilde{x} → x̃ (combining tilde U+0303 on last char)
+				// Handle nested formatting: **x** → **x̃** (tilde before closing **)
+				arg, endPos, ok := consumeGroup(s, n)
+				if !ok {
+					return "", false
+				}
+				convArg, ok := convertLatexTokens(arg)
+				if !ok {
+					return "", false
+				}
+				// If convArg ends with markdown markers, insert tilde before them
+				suffix := ""
+				if strings.HasSuffix(convArg, "**") {
+					suffix = "**"
+					convArg = convArg[:len(convArg)-2]
+				} else if strings.HasSuffix(convArg, "*") {
+					suffix = "*"
+					convArg = convArg[:len(convArg)-1]
+				}
+				result.WriteString(convArg)
+				result.WriteRune('\u0303') // combining tilde on last actual char
+				result.WriteString(suffix)
+				i = endPos
+
 			} else if cmd == "mathcal" || cmd == "mathit" {
 				// \mathcal{...} / \mathit{...} → *...* (markdown italic)
 				arg, endPos, ok := consumeGroup(s, n)
@@ -568,6 +632,27 @@ func convertLatexTokens(s string) (string, bool) {
 				result.WriteString("*")
 				result.WriteString(convArg)
 				result.WriteString("*")
+				i = endPos
+
+			} else if cmd == "sqrt" {
+				// \sqrt{x} → √x (single char) or √(multi char)
+				arg, endPos, ok := consumeGroup(s, n)
+				if !ok {
+					return "", false
+				}
+				convArg, ok := convertLatexTokens(arg)
+				if !ok {
+					return "", false
+				}
+				result.WriteRune('√')
+				// If the argument is a single rune, no parentheses needed
+				if len([]rune(convArg)) <= 1 {
+					result.WriteString(convArg)
+				} else {
+					result.WriteByte('(')
+					result.WriteString(convArg)
+					result.WriteByte(')')
+				}
 				i = endPos
 
 			} else if cmd == "mathrm" || cmd == "text" || cmd == "texttt" || cmd == "textbf" {
@@ -668,29 +753,21 @@ func consumeGroup(s string, pos int) (string, int, bool) {
 }
 
 // toSubscript tries to convert text to Unicode subscript.
-// For single characters, looks up subscriptMap.
-// For multi-character strings, all characters must have subscript forms.
+// First runs through convertLatexTokens to resolve any commands (\mathbb{R}→R, \beta→β, etc.),
+// then checks each resulting character in subscriptMap.
 func toSubscript(s string) (string, bool) {
 	if s == "" {
 		return "", false
 	}
 
-	// Handle Greek letters via \command inside subscript
-	// e.g., _\beta → ᵦ
-	if strings.HasPrefix(s, "\\") {
-		if unicode, ok := unicodeMap[s[1:]]; ok {
-			runes := []rune(unicode)
-			if len(runes) == 1 {
-				if sub, ok := subscriptMap[runes[0]]; ok {
-					return string(sub), true
-				}
-			}
-		}
+	// Process through full token conversion first (handles \mathbb, \beta, etc.)
+	converted, ok := convertLatexTokens(s)
+	if !ok {
 		return "", false
 	}
 
-	// Try to convert each character
-	runes := []rune(s)
+	// Try to convert each resulting character to subscript
+	runes := []rune(converted)
 	var out strings.Builder
 	for _, r := range runes {
 		if sub, ok := subscriptMap[r]; ok {
@@ -703,23 +780,20 @@ func toSubscript(s string) (string, bool) {
 }
 
 // toSuperscript tries to convert text to Unicode superscript.
+// First runs through convertLatexTokens, then checks each character in superscriptMap.
 func toSuperscript(s string) (string, bool) {
 	if s == "" {
 		return "", false
 	}
 
-	// Handle Greek letters via \command inside superscript
-	if strings.HasPrefix(s, "\\") {
-		if _, ok := unicodeMap[s[1:]]; ok {
-			// Most Greek letters don't have superscript forms
-			// Only some do: β, γ, θ, φ, etc., but not general.
-			return "", false
-		}
+	// Process through full token conversion first
+	converted, ok := convertLatexTokens(s)
+	if !ok {
 		return "", false
 	}
 
-	// Try to convert each character
-	runes := []rune(s)
+	// Try to convert each resulting character to superscript
+	runes := []rune(converted)
 	var out strings.Builder
 	for _, r := range runes {
 		if sup, ok := superscriptMap[r]; ok {

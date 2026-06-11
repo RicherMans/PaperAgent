@@ -65,6 +65,45 @@ func TestLatexToUnicode_Simple(t *testing.T) {
 			in:   "$\\lambda_{\\text{distill}}$",
 			want: "$\\lambda_{\\text{distill}}$",
 		},
+		{
+			name: "sqrt single char",
+			in:   "$\\sqrt{k}$",
+			want: "√k",
+		},
+		{
+			name: "sqrt multi char with subscript",
+			in:   "$\\sqrt{k_s}$",
+			want: "√(kₛ)",
+		},
+		{
+			name: "mathbb becomes plain",
+			in:   "$\\mathbb{R}$",
+			want: "R",
+		},
+		{
+			name: "tilde with combining mark",
+			in:   "$\\tilde{x}$",
+			want: "x̃",
+		},
+		{
+			name: "tilde with mathbf inside (bold x with tilde)",
+			in:   "$\\tilde{\\mathbf{x}}$",
+			want: "**x̃**",
+		},{
+			name: "thin space comma ignored",
+			in:   "$x\\,y$",
+			want: "x y",
+		},
+		{
+			name: "escaped braces literal",
+			in:   "$\\{1, 2\\}$",
+			want: "{1, 2}",
+		},
+		{
+			name: "in and ldots",
+			in:   "$s \\in \\{1, \\ldots, S\\}$",
+			want: "s ∈ {1, …, S}",
+		},
 	}
 
 	for _, tt := range tests {
@@ -139,6 +178,16 @@ func TestLatexToUnicode_PreserveOnFailure(t *testing.T) {
 			name: "double subscript letter fails",
 			in:   "$x_{ab}$",
 			want: "$x_{ab}$",
+		},
+		{
+			name: "mathbf z text long s — g has no subscript",
+			in:   "$\\mathbf{z}_{\\text{long}}^s$",
+			want: "$\\mathbf{z}_{\\text{long}}^s$",
+		},
+		{
+			name: "sqrt with nth root not supported",
+			in:   "$\\sqrt[3]{x}$",
+			want: "$\\sqrt[3]{x}$",
 		},
 	}
 
@@ -225,11 +274,9 @@ func TestLatexToUnicode_InlineFormulaPreserved(t *testing.T) {
 	// d, i, s, t, i, l, l — d has no subscript, so _{distill} fails
 	// But _{t} works for single char!
 	
-	// With \text{} stripping, the first formula has no subscript marker (_).
-	// So it's \mathcal{L}{distill} which is: *L*distill (the {distill} is a braced group, not subscript)
-	// This should succeed!
-	
-	want := "其中 *L*distill 即WavLM蒸馏损失，权重 $\\lambda_{\\text{distill}}=25$（附录H表13）"
+	// With braces now preserved for standalone groups:
+	// \mathcal{L}{\text{distill}} → *L*{distill}
+	want := "其中 *L*{distill} 即WavLM蒸馏损失，权重 $\\lambda_{\\text{distill}}=25$（附录H表13）"
 	got := latexToUnicode(in)
 	if got != want {
 		t.Errorf("inline formula\n  got:  %q\n  want: %q", got, want)
