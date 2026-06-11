@@ -240,7 +240,8 @@ func fitMarkdownContent(content string, builder func(content string) string) (fi
 }
 
 // findSafeBoundary scans lines from the start of content and finds the last
-// line boundary at or before maxBytes that is NOT inside a table or code block.
+// line boundary at or before maxBytes that is NOT inside a table, code block,
+// or LaTeX math formula ($...$ or $$...$$).
 // Returns the byte position of that boundary (right after the newline), or 0.
 // Blank line boundaries are preferred (quality=2), then any safe boundary (quality=1).
 func findSafeBoundary(content string, maxBytes int) int {
@@ -251,6 +252,7 @@ func findSafeBoundary(content string, maxBytes int) int {
 	lines := strings.Split(content, "\n")
 	inTable := false
 	inCodeBlock := false
+	inMath := false // inside $...$ or $$...$$
 	bytePos := 0
 	bestPos := 0
 	lastSafePos := 0
@@ -282,8 +284,17 @@ func findSafeBoundary(content string, maxBytes int) int {
 			inTable = false
 		}
 
+		// Track math mode using $ count parity
+		// (simple heuristic: odd $ means math crosses this line)
+		if !inCodeBlock {
+			dollarCount := strings.Count(trimmed, "$")
+			if dollarCount%2 == 1 {
+				inMath = !inMath
+			}
+		}
+
 		// Record position AFTER this line
-		if !inCodeBlock && !inTable {
+		if !inCodeBlock && !inTable && !inMath {
 			lastSafePos = lineEnd
 			if trimmed == "" {
 				bestPos = lineEnd // blank line is ideal

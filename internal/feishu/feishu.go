@@ -495,20 +495,21 @@ func (b *Bot) streamSummary(chatID string, paper *session.Paper) {
 		isFirst := len(slots) == 1
 
 		fits, overflow := fitMarkdownContent(cardContent, func(c string) string {
+			converted := latexToUnicode(c)
 			if isFirst {
-				return buildStreamingCard(paper.Ref(), paper.Title, c)
+				return buildStreamingCard(paper.Ref(), paper.Title, converted)
 			}
-			return buildStreamingContinuationCard(c)
+			return buildStreamingContinuationCard(converted)
 		})
 
 		if overflow != "" {
-			// Freeze current card
-			b.patchCard(active.id, buildContinuationCard(fits))
+			// Freeze current card (converted)
+			b.patchCard(active.id, buildContinuationCard(latexToUnicode(fits)))
 
-			// Send new streaming continuation card
+			// Send new streaming continuation card (converted)
 			overflowStart := active.startAt + len(fits)
 			overflowContent := total[overflowStart:]
-			newID := b.sendInteractiveCard(chatID, buildStreamingContinuationCard(overflowContent))
+			newID := b.sendInteractiveCard(chatID, buildStreamingContinuationCard(latexToUnicode(overflowContent)))
 			if newID != "" {
 				slots = append(slots, cardSlot{id: newID, startAt: overflowStart})
 				log.Printf("[feishu] summary card full -> card #%d (total so far: %d chars)", len(slots), len(total))
@@ -547,19 +548,19 @@ func (b *Bot) streamSummary(chatID string, paper *session.Paper) {
 	lastContent := summary[last.startAt:]
 
 	fits, overflow := fitMarkdownContent(lastContent, func(c string) string {
-		return buildDoneCard(paper.Ref(), paper.Title, c, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens)
+		return buildDoneCard(paper.Ref(), paper.Title, latexToUnicode(c), paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens)
 	})
 
 	if overflow != "" {
 		// Last card's content still doesn't fit — freeze as continuation, send one more done card
-		b.patchCard(last.id, buildContinuationCard(fits))
-		b.sendInteractiveCard(chatID, buildDoneCard(paper.Ref(), paper.Title, overflow, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
+		b.patchCard(last.id, buildContinuationCard(latexToUnicode(fits)))
+		b.sendInteractiveCard(chatID, buildDoneCard(paper.Ref(), paper.Title, latexToUnicode(overflow), paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
 	} else if len(slots) == 1 {
 		// Single card: patch from streaming to done in-place
-		b.patchCard(last.id, buildDoneCard(paper.Ref(), paper.Title, fits, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
+		b.patchCard(last.id, buildDoneCard(paper.Ref(), paper.Title, latexToUnicode(fits), paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
 	} else {
 		// Last of multiple cards: patch to done
-		b.patchCard(last.id, buildDoneCard(paper.Ref(), paper.Title, fits, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
+		b.patchCard(last.id, buildDoneCard(paper.Ref(), paper.Title, latexToUnicode(fits), paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
 	}
 }
 
@@ -900,20 +901,21 @@ func (b *Bot) cmdChat(chatID, messageID, paperID, question string, skipContext b
 		isFirst := len(slots) == 1
 
 		fits, overflow := fitMarkdownContent(cardContent, func(c string) string {
+			converted := latexToUnicode(c)
 			if isFirst {
-				return buildChatStreamingCard(paperID, paper.Title, c)
+				return buildChatStreamingCard(paperID, paper.Title, converted)
 			}
-			return buildChatStreamingContinuationCard(c)
+			return buildChatStreamingContinuationCard(converted)
 		})
 
 		if overflow != "" {
-			// Freeze current card as a continuation card
-			b.patchCard(active.id, buildContinuationCard(fits))
+			// Freeze current card as a continuation card (converted)
+			b.patchCard(active.id, buildContinuationCard(latexToUnicode(fits)))
 
-			// Send new streaming continuation card
+			// Send new streaming continuation card (converted)
 			overflowStart := active.startAt + len(fits)
 			overflowContent := total[overflowStart:]
-			newID := b.sendInteractiveCard(chatID, buildChatStreamingContinuationCard(overflowContent))
+			newID := b.sendInteractiveCard(chatID, buildChatStreamingContinuationCard(latexToUnicode(overflowContent)))
 			if newID != "" {
 				slots = append(slots, chatCardSlot{id: newID, startAt: overflowStart})
 				log.Printf("[feishu] chat card full -> card #%d (total so far: %d chars)", len(slots), len(total))
@@ -954,15 +956,15 @@ func (b *Bot) cmdChat(chatID, messageID, paperID, question string, skipContext b
 	lastContent := answer[last.startAt:]
 
 	fits, overflow := fitMarkdownContent(lastContent, func(c string) string {
-		return buildChatDoneCard(paperID, paper.Title, c, round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens)
+		return buildChatDoneCard(paperID, paper.Title, latexToUnicode(c), round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens)
 	})
 
 	if overflow != "" {
 		// Last card still doesn't fit — freeze, send one more done card
-		b.patchCard(last.id, buildContinuationCard(fits))
-		b.sendInteractiveCard(chatID, buildChatDoneCard(paperID, paper.Title, overflow, round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
+		b.patchCard(last.id, buildContinuationCard(latexToUnicode(fits)))
+		b.sendInteractiveCard(chatID, buildChatDoneCard(paperID, paper.Title, latexToUnicode(overflow), round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
 	} else {
-		b.patchCard(last.id, buildChatDoneCard(paperID, paper.Title, fits, round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
+		b.patchCard(last.id, buildChatDoneCard(paperID, paper.Title, latexToUnicode(fits), round, paper.TotalPromptTokens, paper.TotalCompletionTokens, paper.TotalCachedTokens))
 	}
 }
 
@@ -1275,6 +1277,7 @@ func buildPostMdJSON(content string) string {
 // - markdown with ≤5 tables → interactive card (best rendering)
 // - markdown with >5 tables → post with md tag
 func (b *Bot) buildMessageContent(text string) (msgType, body string) {
+	text = latexToUnicode(text)
 	if !hasMarkdown(text) {
 		b, _ := json.Marshal(map[string]string{"text": text})
 		return larkim.MsgTypeText, string(b)
