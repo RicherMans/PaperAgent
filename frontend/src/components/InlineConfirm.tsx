@@ -42,7 +42,7 @@ export function InlineConfirm({
   return (
     <div
       ref={ref}
-      className="absolute z-50 mt-1 right-0 rounded-lg shadow-lg p-3 animate-fade-in"
+      className="absolute z-[100] mb-1 bottom-full right-0 rounded-lg shadow-lg p-3 animate-fade-in"
       style={{
         backgroundColor: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
