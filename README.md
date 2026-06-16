@@ -328,6 +328,19 @@ just clean
 | 持久化 | JSON 文件 (~/.config/paperagent/papers/) |
 | 飞书 | larksuite/oapi-sdk-go v3, WebSocket + 交互卡片 |
 
+## Nix
+
+```bash
+# 运行
+nix run github:RicherMans/PaperAgent
+
+# 带参数
+nix run github:RicherMans/PaperAgent -- https://arxiv.org/abs/2301.00001
+
+# 构建
+nix build github:RicherMans/PaperAgent
+```
+
 ## 许可
 
 MIT
