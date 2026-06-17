@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Toaster, toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
+import i18n from './i18n'
 import { PaperList } from './components/PaperList'
 import { ChatView } from './components/ChatView'
 import { InputBox } from './components/InputBox'
@@ -21,6 +23,7 @@ export async function setActivePaperOnServer(id: string | null) {
 }
 
 export default function App() {
+  const { t } = useTranslation()
   useConnection()
   const qc = useQueryClient()
   const abortRef = useRef<AbortController | null>(null)
@@ -63,11 +66,14 @@ export default function App() {
       } = useAppStore.getState()
 
       try {
-        toast.loading('正在加载论文...')
+        toast.loading(t('inputBox.loadingPaper'))
 
         const res = await fetch('/api/papers', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept-Language': i18n.language === 'en' ? 'en' : 'zh',
+          },
           body: JSON.stringify({ url }),
           signal: controller.signal,
         })
@@ -126,7 +132,7 @@ export default function App() {
                     break
                   case 'error':
                     setPendingError(evt.error || 'Unknown error')
-                    toast.error(evt.error || '摘要生成失败')
+                    toast.error(evt.error || t('inputBox.summaryFailed'))
                     break
                 }
               } catch { /* skip */ }
@@ -138,12 +144,12 @@ export default function App() {
             qc.invalidateQueries({ queryKey: ['papers'] })
             setCurrentPaperId(data.id)
             toast.dismiss()
-            toast.success('论文已加载')
+            toast.success(t('inputBox.paperLoaded'))
           }
         }
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return
-        const msg = err instanceof Error ? err.message : '加载失败'
+        const msg = err instanceof Error ? err.message : t('inputBox.loadFailed')
         toast.error(msg)
       } finally {
         clearTimeout(timeoutId)
@@ -153,7 +159,7 @@ export default function App() {
     return () => {
       abortRef.current?.abort()
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')

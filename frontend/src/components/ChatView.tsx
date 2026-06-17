@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import { RefreshCw, Maximize2, Minimize2, Sun, Moon, Monitor } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePaper } from '../hooks/usePapers'
 import { useSSE } from '../hooks/useSSE'
@@ -20,6 +21,7 @@ function getPdfUrl(arxivId: string): string {
 }
 
 function SourceLink({ paper }: { paper: Paper | undefined }) {
+  const { t } = useTranslation()
   if (!paper?.arxiv_id) return null
   return (
     <a
@@ -28,8 +30,8 @@ function SourceLink({ paper }: { paper: Paper | undefined }) {
       rel="noopener noreferrer"
       className="p-1.5 rounded-md transition-all duration-200 hover:scale-105 active:scale-95 ml-1"
       style={{ color: 'var(--color-text-muted)' }}
-      title="打开 PDF"
-      aria-label="打开论文 PDF"
+      title={t('chatView.openPdf')}
+      aria-label={t('chatView.openPaperPdf')}
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -55,6 +57,7 @@ function StreamRenderer({ content }: { content: string }) {
 }
 
 function LoadingDots() {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center gap-1.5 py-1">
       {[0, 150, 300].map((delay) => (
@@ -69,13 +72,14 @@ function LoadingDots() {
         />
       ))}
       <span className="text-xs ml-1" style={{ color: 'var(--color-text-muted)' }}>
-        正在生成...
+        {t('chatView.generating')}
       </span>
     </div>
   )
 }
 
 export function ChatView() {
+  const { t } = useTranslation()
   const {
     currentPaperId,
     pendingPaperId, pendingSummary, pendingError, clearPending,
@@ -317,13 +321,13 @@ export function ChatView() {
             className="text-lg"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text-secondary)' }}
           >
-            选择一篇论文开始阅读
+            {t('chatView.selectPaper')}
           </p>
           <p
             className="text-sm mt-2"
             style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-text-muted)' }}
           >
-            点击左侧论文列表，或创建新论文
+            {t('chatView.selectPaperHint')}
           </p>
         </div>
       </div>
@@ -394,6 +398,8 @@ export function ChatView() {
   // --- Controls button style ---
   const controlBtnClass = "p-1.5 rounded-md transition-all duration-200 hover:scale-105 active:scale-95"
 
+  const themeModeLabel = theme === 'light' ? t('chatView.themeLight') : theme === 'dark' ? t('chatView.themeDark') : t('chatView.themeSystem')
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Title bar */}
@@ -420,10 +426,10 @@ export function ChatView() {
                 height: 7,
                 backgroundColor: 'var(--color-danger)',
               }}
-              title="与服务器断开连接"
+              title={t('chatView.disconnectedHint')}
             />
           )}
-          {paper?.title || '加载中...'}
+          {paper?.title || t('chatView.loading')}
         </h2>
 
         {/* Controls group */}
@@ -432,8 +438,8 @@ export function ChatView() {
             onClick={toggleContentWidth}
             className={controlBtnClass}
             style={{ color: 'var(--color-text-muted)' }}
-            title={contentWidth === 'full' ? '窄屏阅读' : '宽屏阅读'}
-            aria-label={contentWidth === 'full' ? '切换到窄屏' : '切换到宽屏'}
+            title={contentWidth === 'full' ? t('chatView.narrowReading') : t('chatView.wideReading')}
+            aria-label={contentWidth === 'full' ? t('chatView.switchToNarrow') : t('chatView.switchToWide')}
           >
             {contentWidth === 'full' ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
@@ -445,8 +451,8 @@ export function ChatView() {
             }}
             className={controlBtnClass}
             style={{ color: 'var(--color-text-muted)' }}
-            title={`主题: ${theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '跟随系统'}`}
-            aria-label="切换主题"
+            title={t('chatView.themeLabel', { mode: themeModeLabel })}
+            aria-label={t('chatView.switchTheme')}
           >
             {theme === 'light' ? <Sun size={15} /> : theme === 'dark' ? <Moon size={15} /> : <Monitor size={15} />}
           </button>
@@ -622,7 +628,7 @@ export function ChatView() {
         {needsSummaryRetry && !retryingSummary && (
           <div className="px-5 py-10 flex flex-col items-center gap-3 animate-fade-in-up">
             <p className="text-sm" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
-              摘要生成未完成，点击重新生成
+              {t('chatView.summaryIncomplete')}
             </p>
             <button
               onClick={handleRetrySummary}
@@ -633,7 +639,7 @@ export function ChatView() {
                 fontFamily: 'var(--font-ui)',
               }}
             >
-              <RefreshCw size={14} /> 重新生成摘要
+              <RefreshCw size={14} /> {t('chatView.regenerateSummary')}
             </button>
           </div>
         )}
@@ -657,7 +663,7 @@ export function ChatView() {
                     className="underline hover:no-underline flex items-center gap-1 transition-colors duration-150"
                     style={{ color: 'var(--color-accent)' }}
                   >
-                    <RefreshCw size={12} /> 重试
+                    <RefreshCw size={12} /> {t('chatView.retryAnswer')}
                   </button>
                 )}
                 <button
@@ -665,7 +671,7 @@ export function ChatView() {
                   className="underline hover:no-underline transition-colors duration-150"
                   style={{ color: 'var(--color-accent)' }}
                 >
-                  关闭
+                  {t('chatView.closeError')}
                 </button>
               </div>
             </div>

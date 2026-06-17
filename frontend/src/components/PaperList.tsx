@@ -1,5 +1,7 @@
-import { Plus, Trash2, MoreHorizontal, Download, Pencil, ArrowUp, ArrowDown, Settings, ScrollText, Terminal, AlertTriangle, Search, X, Pin, PinOff } from 'lucide-react'
+import { Plus, Trash2, MoreHorizontal, Download, Pencil, ArrowUp, ArrowDown, Settings, ScrollText, Terminal, Search, X, Pin, PinOff } from 'lucide-react'
+import { LanguageButton } from './LanguageButton'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { usePaperList, useDeletePaper, useExportPaper, useUpdateTitle, useUpdateRating, useSummarizeExport, useTogglePin } from '../hooks/usePapers'
 import { useAppStore } from '../stores/appStore'
 import { setActivePaperOnServer } from '../App'
@@ -20,13 +22,14 @@ function getInitialSortOrder(): SortOrder {
 }
 
 function RatingDots({ rating, onRate }: { rating: number; onRate: (n: number) => void }) {
+  const { t } = useTranslation()
   const [hovered, setHovered] = useState(0)
 
   return (
     <div
       className="flex items-center gap-px mt-1.5"
       onMouseLeave={() => setHovered(0)}
-      title={rating > 0 ? `评分: ${rating}/10` : '点击评分 (1-10)'}
+      title={rating > 0 ? t('paperList.rating', { rating }) : t('paperList.clickToRate')}
     >
       {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
         const filled = hovered ? n <= hovered : n <= rating
@@ -45,7 +48,7 @@ function RatingDots({ rating, onRate }: { rating: number; onRate: (n: number) =>
                 : 'var(--color-text-muted)',
               opacity: filled ? 1 : 0.25,
             }}
-            aria-label={`评分 ${n}`}
+            aria-label={t('paperList.ratingLabel', { n })}
           />
         )
       })}
@@ -62,6 +65,7 @@ function RatingDots({ rating, onRate }: { rating: number; onRate: (n: number) =>
 }
 
 export function PaperList() {
+  const { t } = useTranslation()
   const { data: papers, isLoading, isError, refetch } = usePaperList()
   const deletePaper = useDeletePaper()
   const exportPaper = useExportPaper()
@@ -178,13 +182,13 @@ export function PaperList() {
   const handleDeleteConfirm = async (id: string) => {
     try {
       await deletePaper.mutateAsync(id)
-      toast.success('论文已删除')
+      toast.success(t('paperList.paperDeleted'))
       if (currentPaperId === id) {
       setCurrentPaperId(null)
       setActivePaperOnServer(null)
     }
     } catch {
-      toast.error('删除失败')
+      toast.error(t('paperList.deleteFailed'))
     }
     setDeleteConfirmId(null)
     setMenuOpen(null)
@@ -205,9 +209,9 @@ export function PaperList() {
   const handleExport = async (id: string) => {
     try {
       const result = await exportPaper.mutateAsync(id)
-      toast.success(`已导出到 ${result.path}`)
+      toast.success(t('paperList.exportedTo', { path: result.path }))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '导出失败')
+      toast.error(err instanceof Error ? err.message : t('paperList.exportFailed'))
     }
     setMenuOpen(null)
     setContextMenu(null)
@@ -216,9 +220,9 @@ export function PaperList() {
   const handleSummarizeExport = async (id: string) => {
     try {
       const result = await summarizeExport.mutateAsync(id)
-      toast.success(`总结已导出到 ${result.path}`)
+      toast.success(t('paperList.summaryExportedTo', { path: result.path }))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '总结导出失败')
+      toast.error(err instanceof Error ? err.message : t('paperList.summaryExportFailed'))
     }
     setMenuOpen(null)
     setContextMenu(null)
@@ -236,9 +240,9 @@ export function PaperList() {
     if (trimmed) {
       try {
         await updateTitle.mutateAsync({ id, title: trimmed })
-        toast.success('标题已更新')
+        toast.success(t('paperList.titleUpdated'))
       } catch {
-        toast.error('更新标题失败')
+        toast.error(t('paperList.updateTitleFailed'))
       }
     }
     setEditingTitle(null)
@@ -254,7 +258,7 @@ export function PaperList() {
     try {
       await updateRating.mutateAsync({ id, rating })
     } catch {
-      toast.error('评分失败')
+      toast.error(t('paperList.ratingFailed'))
     }
   }
 
@@ -262,9 +266,9 @@ export function PaperList() {
     try {
       await togglePin.mutateAsync(id)
       const p = papers?.find(pp => pp.id === id)
-      toast.success(p?.pinned ? '已取消置顶' : '已置顶')
+      toast.success(p?.pinned ? t('paperList.unpinned') : t('paperList.pinned'))
     } catch {
-      toast.error('操作失败')
+      toast.error(t('paperList.actionFailed'))
     }
     setMenuOpen(null)
     setContextMenu(null)
@@ -275,9 +279,9 @@ export function PaperList() {
       const d = new Date(dateStr)
       const now = new Date()
       const diff = now.getTime() - d.getTime()
-      if (diff < 60 * 1000) return '刚刚'
-      if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} 分钟前`
-      if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} 小时前`
+      if (diff < 60 * 1000) return t('common.justNow')
+      if (diff < 60 * 60 * 1000) return t('common.minutesAgo', { count: Math.floor(diff / 60000) })
+      if (diff < 24 * 60 * 60 * 1000) return t('common.hoursAgo', { count: Math.floor(diff / 3600000) })
       return dateStr
     } catch {
       return dateStr
@@ -310,6 +314,8 @@ export function PaperList() {
     return sortedPapers.filter((p) => p.title.toLowerCase().includes(q))
   }, [sortedPapers, searchQuery])
 
+  const sortModeLabel = sortBy === 'time' ? t('paperList.sortByTime') : t('paperList.sortByRating')
+
   return (
     <div
       className="flex-shrink-0 flex flex-col h-full relative"
@@ -328,7 +334,7 @@ export function PaperList() {
           className="text-sm font-semibold tracking-wide"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text-secondary)' }}
         >
-          论文列表
+          {t('paperList.title')}
         </h1>
         <div className="flex items-center gap-1">
           {searchOpen ? (
@@ -338,7 +344,7 @@ export function PaperList() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索论文标题..."
+                placeholder={t('paperList.searchPlaceholder')}
                 className="w-36 px-2 py-1 text-xs rounded border outline-none transition-all duration-200"
                 style={{
                   fontFamily: 'var(--font-ui)',
@@ -351,8 +357,8 @@ export function PaperList() {
                 onClick={() => { setSearchOpen(false); setSearchQuery('') }}
                 className="p-1 rounded-md transition-all duration-200 hover:bg-[var(--color-bg-inset)]"
                 style={{ color: 'var(--color-text-muted)' }}
-                title="关闭搜索"
-                aria-label="关闭搜索"
+                title={t('paperList.closeSearch')}
+                aria-label={t('paperList.closeSearch')}
               >
                 <X size={13} />
               </button>
@@ -366,17 +372,17 @@ export function PaperList() {
                   color: sortBy === 'rating' ? 'var(--color-accent)' : 'var(--color-text-muted)',
                   fontFamily: 'var(--font-ui)',
                 }}
-                title={`排序: ${sortBy === 'time' ? '时间' : '评分'}`}
-                aria-label={`按${sortBy === 'time' ? '评分' : '时间'}排序`}
+                title={t('paperList.sortBy', { mode: sortModeLabel })}
+                aria-label={t('paperList.sortByLabel', { mode: sortBy === 'time' ? t('paperList.sortByRating') : t('paperList.sortByTime') })}
               >
-                {sortBy === 'time' ? '时间' : '评分'}
+                {sortModeLabel}
               </button>
               <button
                 onClick={toggleSortOrder}
                 className="p-1 rounded-md transition-all duration-200 hover:scale-105 active:scale-95"
                 style={{ color: 'var(--color-text-muted)' }}
-                title={sortOrder === 'desc' ? '降序' : '升序'}
-                aria-label={sortOrder === 'desc' ? '切换升序' : '切换降序'}
+                title={sortOrder === 'desc' ? t('paperList.desc') : t('paperList.asc')}
+                aria-label={sortOrder === 'desc' ? t('paperList.toggleAsc') : t('paperList.toggleDesc')}
               >
                 {sortOrder === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
               </button>
@@ -384,8 +390,8 @@ export function PaperList() {
                 onClick={() => { setSearchOpen(true); requestAnimationFrame(() => searchInputRef.current?.focus()) }}
                 className="p-1 rounded-md transition-all duration-200 hover:scale-105 active:scale-95"
                 style={{ color: searchQuery ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
-                title="搜索论文 (Cmd+F)"
-                aria-label="搜索"
+                title={t('paperList.searchPapers')}
+                aria-label={t('common.search')}
               >
                 <Search size={12} />
               </button>
@@ -398,8 +404,8 @@ export function PaperList() {
               color: 'var(--color-accent)',
               backgroundColor: 'var(--color-accent-subtle)',
             }}
-            title="新建论文"
-            aria-label="新建论文"
+            title={t('paperList.newPaper')}
+            aria-label={t('paperList.newPaper')}
           >
             <Plus size={15} />
           </button>
@@ -407,8 +413,8 @@ export function PaperList() {
             onClick={() => setSettingsOpen(true)}
             className="p-1.5 rounded-md transition-all duration-200 hover:scale-110 active:scale-95 ml-0.5 hover:bg-[var(--color-bg-inset)]"
             style={{ color: 'var(--color-text-muted)' }}
-            title="设置"
-            aria-label="设置"
+            title={t('common.settings')}
+            aria-label={t('common.settings')}
           >
             <Settings size={15} />
           </button>
@@ -440,9 +446,9 @@ export function PaperList() {
 
         {isError && (
           <div className="p-4 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-danger)' }}>加载失败</p>
+            <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{t('common.loading').replace('...', '')} {t('paperList.deleteFailed').toLowerCase()}</p>
             <button onClick={() => refetch()} className="mt-1 text-xs underline" style={{ color: 'var(--color-accent)' }}>
-              重试
+              {t('common.retry')}
             </button>
           </div>
         )}
@@ -450,10 +456,10 @@ export function PaperList() {
         {!isLoading && !isError && filteredPapers.length === 0 && (
           <div className="p-8 text-center">
             <p className="text-sm" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)' }}>
-              {searchQuery ? '没有匹配的文章' : '暂无论文'}
+              {searchQuery ? t('paperList.noMatch') : t('paperList.noPapers')}
             </p>
             <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-              {searchQuery ? '试试其他关键词' : '点击 + 新建'}
+              {searchQuery ? t('paperList.tryOtherKeywords') : t('paperList.clickPlusNew')}
             </p>
           </div>
         )}
@@ -522,7 +528,7 @@ export function PaperList() {
                         size={11}
                         className="flex-shrink-0"
                         style={{ color: 'var(--color-accent)' }}
-                        aria-label="已置顶"
+                        aria-label={t('paperList.pinned')}
                       />
                     )}
                     <div
@@ -534,7 +540,7 @@ export function PaperList() {
                         transition: 'color var(--transition-fast)',
                       }}
                     >
-                      {p.title || '未命名论文'}
+                      {p.title || t('common.unnamedPaper')}
                     </div>
                   </div>
                   <RatingDots rating={p.rating ?? 0} onRate={(n) => handleRate(p.id, n)} />
@@ -561,7 +567,7 @@ export function PaperList() {
                 onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === p.id ? null : p.id) }}
                 className="p-1 rounded-md transition-colors duration-150 hover:bg-[var(--color-bg-inset)]"
                 style={{ color: 'var(--color-text-muted)' }}
-                aria-label="论文操作"
+                aria-label={t('paperList.paperActions')}
                 aria-expanded={menuOpen === p.id}
               >
                 <MoreHorizontal size={14} />
@@ -584,7 +590,7 @@ export function PaperList() {
                     style={{ color: 'var(--color-text)' }}
                     role="menuitem"
                   >
-                    <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} /> 编辑标题
+                    <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('paperList.editTitle')}
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleTogglePin(p.id) }}
@@ -593,8 +599,8 @@ export function PaperList() {
                     role="menuitem"
                   >
                     {p.pinned
-                      ? <><PinOff size={12} style={{ color: 'var(--color-text-muted)' }} /> 取消置顶</>
-                      : <><Pin size={12} style={{ color: 'var(--color-text-muted)' }} /> 置顶</>
+                      ? <><PinOff size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.unpin')}</>
+                      : <><Pin size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.pin')}</>
                     }
                   </button>
                   <button
@@ -603,7 +609,7 @@ export function PaperList() {
                     style={{ color: 'var(--color-text)' }}
                     role="menuitem"
                   >
-                    <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> 导出
+                    <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.export')}
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSummarizeExport(p.id) }}
@@ -611,7 +617,7 @@ export function PaperList() {
                     style={{ color: 'var(--color-text)' }}
                     role="menuitem"
                   >
-                    <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> 总结导出
+                    <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('paperList.summaryExport')}
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(p.id) }}
@@ -619,7 +625,7 @@ export function PaperList() {
                     style={{ color: 'var(--color-danger)' }}
                     role="menuitem"
                   >
-                    <Trash2 size={12} /> 删除
+                    <Trash2 size={12} /> {t('common.delete')}
                   </button>
                 </div>
               )}
@@ -642,13 +648,14 @@ export function PaperList() {
             fontFamily: 'var(--font-ui)',
             color: 'var(--color-text-muted)',
           }}
-          title="查看服务器日志"
-          aria-label="日志"
+          title={t('paperList.viewLogs')}
+          aria-label={t('common.logs')}
         >
           <Terminal size={13} />
-          日志
+          {t('common.logs')}
         </button>
         <div className="flex-1" />
+        <LanguageButton />
       </div>
 
       {/* Right-click context menu */}
@@ -675,7 +682,7 @@ export function PaperList() {
               style={{ color: 'var(--color-text)' }}
               role="menuitem"
             >
-              <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} /> 编辑标题
+              <Pencil size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('paperList.editTitle')}
             </button>
             <button
               onClick={() => { handleTogglePin(p.id) }}
@@ -684,8 +691,8 @@ export function PaperList() {
               role="menuitem"
             >
               {p.pinned
-                ? <><PinOff size={12} style={{ color: 'var(--color-text-muted)' }} /> 取消置顶</>
-                : <><Pin size={12} style={{ color: 'var(--color-text-muted)' }} /> 置顶</>
+                ? <><PinOff size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.unpin')}</>
+                : <><Pin size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.pin')}</>
               }
             </button>
             <button
@@ -694,7 +701,7 @@ export function PaperList() {
               style={{ color: 'var(--color-text)' }}
               role="menuitem"
             >
-              <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> 导出
+              <Download size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('common.export')}
             </button>
             <button
               onClick={() => { handleSummarizeExport(p.id) }}
@@ -702,7 +709,7 @@ export function PaperList() {
               style={{ color: 'var(--color-text)' }}
               role="menuitem"
             >
-              <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> 总结导出
+              <ScrollText size={12} style={{ color: 'var(--color-text-muted)' }} /> {t('paperList.summaryExport')}
             </button>
             <button
               onClick={() => { handleDelete(p.id) }}
@@ -710,7 +717,7 @@ export function PaperList() {
               style={{ color: 'var(--color-danger)' }}
               role="menuitem"
             >
-              <Trash2 size={12} /> 删除
+              <Trash2 size={12} /> {t('common.delete')}
             </button>
           </div>
         )
@@ -722,10 +729,10 @@ export function PaperList() {
         return (
           <ConfirmDialog
             open={!!deleteConfirmId}
-            title="删除论文"
-            message={<>确定要删除「{p?.title || '未命名论文'}」吗？此操作不可撤销。</>}
-            confirmLabel="删除"
-            cancelLabel="取消"
+            title={t('paperList.deletePaper')}
+            message={t('paperList.deleteConfirm', { title: p?.title || t('common.unnamedPaper') })}
+            confirmLabel={t('common.delete')}
+            cancelLabel={t('common.cancel')}
             danger
             onConfirm={() => handleDeleteConfirm(deleteConfirmId)}
             onCancel={() => { setDeleteConfirmId(null); setMenuOpen(null); setContextMenu(null) }}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import i18n from '../i18n'
 import { useAppStore } from '../stores/appStore'
 import type { SSEEvent } from '../types'
 
@@ -39,6 +40,7 @@ export function useSSE() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
+          'Accept-Language': i18n.language === 'en' ? 'en' : 'zh',
         },
         body: JSON.stringify(body),
         signal: controller.signal,

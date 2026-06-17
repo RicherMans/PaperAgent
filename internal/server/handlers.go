@@ -70,6 +70,15 @@ type paperSummaryResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// langFromRequest extracts the preferred language from the Accept-Language header.
+func langFromRequest(r *http.Request) string {
+	al := r.Header.Get("Accept-Language")
+	if strings.HasPrefix(al, "en") {
+		return "en"
+	}
+	return "zh"
+}
+
 // --- Handlers ---
 
 func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
@@ -180,12 +189,14 @@ func (s *Server) handleNewPaper(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[new-paper] starting summary stream for %s", paper.Ref())
 
+	lang := langFromRequest(r)
+
 	// Use paper.Content (already stripped of references) for the LLM,
 	// and add the get_references tool so LLM can request references on demand.
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSystem()},
+		{Role: "system", Content: prompt.GetSystemLang(lang)},
 		{Role: "user", Content: paper.Content},
-		{Role: "user", Content: prompt.GetHeavy()},
+		{Role: "user", Content: prompt.GetHeavyLang(lang)},
 	}
 	var tools []api.Tool
 	if references != "" {
@@ -487,10 +498,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	// Old papers (References为空) have full content with references intact.
 	bodyForLLM := paper.Content
 	recent := paper.RecentContextMessages()
+	lang := langFromRequest(r)
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSystem()},
+		{Role: "system", Content: prompt.GetSystemLang(lang)},
 		{Role: "user", Content: bodyForLLM},
-		{Role: "user", Content: prompt.GetLight()},
+		{Role: "user", Content: prompt.GetLightLang(lang)},
 	}
 	for _, msg := range recent {
 		messages = append(messages, api.ChatMessage{Role: msg.Role, Content: msg.Content})
@@ -733,11 +745,13 @@ func (s *Server) handleRetrySummary(w http.ResponseWriter, r *http.Request) {
 
 	unlock()
 
+	lang := langFromRequest(r)
+
 	// Build messages
 	msgs := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSystem()},
+		{Role: "system", Content: prompt.GetSystemLang(lang)},
 		{Role: "user", Content: body},
-		{Role: "user", Content: prompt.GetHeavy()},
+		{Role: "user", Content: prompt.GetHeavyLang(lang)},
 	}
 
 	if existingSummary != "" {
@@ -939,10 +953,12 @@ func (s *Server) handleRetryChat(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[retry-chat] context is empty (anchor=%d, target_round=%d)", paper.TruncationAnchor, round)
 	}
 
+	lang := langFromRequest(r)
+
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSystem()},
+		{Role: "system", Content: prompt.GetSystemLang(lang)},
 		{Role: "user", Content: bodyForLLM},
-		{Role: "user", Content: prompt.GetLight()},
+		{Role: "user", Content: prompt.GetLightLang(lang)},
 	}
 	for _, m := range prevMsgs {
 		messages = append(messages, api.ChatMessage{Role: m.Role, Content: m.Content})
@@ -1258,8 +1274,10 @@ func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lang := langFromRequest(r)
+
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSummarize()},
+		{Role: "system", Content: prompt.GetSummarizeLang(lang)},
 		{Role: "user", Content: context.String()},
 	}
 
@@ -1316,8 +1334,10 @@ func (s *Server) handleSummarizeExport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	lang := langFromRequest(r)
+
 	messages := []api.ChatMessage{
-		{Role: "system", Content: prompt.GetSummarize()},
+		{Role: "system", Content: prompt.GetSummarizeLang(lang)},
 		{Role: "user", Content: context.String()},
 	}
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Copy, Check, RefreshCw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { InlineConfirm } from './InlineConfirm'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
@@ -27,6 +28,7 @@ interface MessageBubbleProps {
 }
 
 function CopyBtn({ content }: { content: string }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   return (
     <button
@@ -37,8 +39,8 @@ function CopyBtn({ content }: { content: string }) {
       }}
       className="p-1 rounded transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
       style={{ color: copied ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
-      title="复制原文"
-      aria-label="复制原文"
+      title={t('messageBubble.copyRaw')}
+      aria-label={t('messageBubble.copyRaw')}
     >
       {copied ? <Check size={13} /> : <Copy size={13} />}
     </button>
@@ -46,6 +48,7 @@ function CopyBtn({ content }: { content: string }) {
 }
 
 export function MessageBubble({ role, content, roundNumber, isStreaming, skipContext, promptTokens, completionTokens, cachedTokens, cumulativePromptTokens, cumulativeCompletionTokens, cumulativeCachedTokens, onDeleteRound, onRetryRound }: MessageBubbleProps) {
+  const { t } = useTranslation()
   const hasTokens = role === 'assistant' && (promptTokens !== undefined || completionTokens !== undefined) &&
     (promptTokens !== 0 || completionTokens !== 0) && !isStreaming
   const hasCumulative = hasTokens && cumulativePromptTokens !== undefined && (cumulativePromptTokens > 0 || cumulativeCompletionTokens! > 0)
@@ -126,16 +129,16 @@ export function MessageBubble({ role, content, roundNumber, isStreaming, skipCon
           >
             {hasTokens && (
               <div className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-                <span style={{ opacity: 0.6 }}>本轮</span> 输入 {((promptTokens ?? 0) - (cachedTokens ?? 0)).toLocaleString()} · 输出 {(completionTokens ?? 0).toLocaleString()}
+                <span style={{ opacity: 0.6 }}>{t('messageBubble.roundLabel')}</span> {t('messageBubble.inputLabel')} {((promptTokens ?? 0) - (cachedTokens ?? 0)).toLocaleString()} · {t('messageBubble.outputLabel')} {(completionTokens ?? 0).toLocaleString()}
                 {(cachedTokens ?? 0) > 0 && (
-                  <> · 缓存命中 {(cachedTokens ?? 0).toLocaleString()}</>
+                  <> · {t('messageBubble.cacheHit')} {(cachedTokens ?? 0).toLocaleString()}</>
                 )}
                 {hasCumulative && (
                   <>
                     <span className="mx-2" style={{ opacity: 0.3 }}>|</span>
-                    <span style={{ opacity: 0.6 }}>累计</span> 输入 {((cumulativePromptTokens ?? 0) - (cumulativeCachedTokens ?? 0)).toLocaleString()} · 输出 {(cumulativeCompletionTokens ?? 0).toLocaleString()}
+                    <span style={{ opacity: 0.6 }}>{t('messageBubble.cumulativeLabel')}</span> {t('messageBubble.inputLabel')} {((cumulativePromptTokens ?? 0) - (cumulativeCachedTokens ?? 0)).toLocaleString()} · {t('messageBubble.outputLabel')} {(cumulativeCompletionTokens ?? 0).toLocaleString()}
                     {(cumulativeCachedTokens ?? 0) > 0 && (
-                      <> · 缓存命中 {(cumulativeCachedTokens ?? 0).toLocaleString()}</>
+                      <> · {t('messageBubble.cacheHit')} {(cumulativeCachedTokens ?? 0).toLocaleString()}</>
                     )}
                   </>
                 )}
@@ -148,15 +151,15 @@ export function MessageBubble({ role, content, roundNumber, isStreaming, skipCon
                   onClick={() => { setRetryConfirmOpen(true); setDeleteConfirmOpen(false) }}
                   className="p-1 rounded transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
                   style={{ color: 'var(--color-text-muted)' }}
-                  title="重新生成"
-                  aria-label="重新生成回答"
+                  title={t('messageBubble.regenerate')}
+                  aria-label={t('messageBubble.regenerateAnswer')}
                 >
                   <RefreshCw size={13} />
                 </button>
                 <InlineConfirm
                   open={retryConfirmOpen}
-                  message="重新生成此条回答？当前回答将被替换。"
-                  confirmLabel="确认重试"
+                  message={t('messageBubble.retryConfirm')}
+                  confirmLabel={t('messageBubble.confirmRetry')}
                   onConfirm={() => { setRetryConfirmOpen(false); onRetryRound(roundNumber) }}
                   onCancel={() => setRetryConfirmOpen(false)}
                 />
@@ -168,15 +171,15 @@ export function MessageBubble({ role, content, roundNumber, isStreaming, skipCon
                   onClick={() => { setDeleteConfirmOpen(true); setRetryConfirmOpen(false) }}
                   className="p-1 rounded transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
                   style={{ color: 'var(--color-text-muted)' }}
-                  title="删除此条问答"
-                  aria-label="删除此条问答"
+                  title={t('messageBubble.deleteQa')}
+                  aria-label={t('messageBubble.deleteQa')}
                 >
                   <Trash2 size={13} />
                 </button>
                 <InlineConfirm
                   open={deleteConfirmOpen}
-                  message="确认删除此条问答？删除后不可恢复。"
-                  confirmLabel="确认删除"
+                  message={t('messageBubble.deleteConfirm')}
+                  confirmLabel={t('messageBubble.confirmDelete')}
                   danger
                   onConfirm={() => { setDeleteConfirmOpen(false); onDeleteRound(roundNumber) }}
                   onCancel={() => setDeleteConfirmOpen(false)}

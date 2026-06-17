@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Command } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { useAppStore } from '../stores/appStore'
 import { useExportPaper } from '../hooks/usePapers'
 import { useQueryClient } from '@tanstack/react-query'
@@ -23,6 +25,7 @@ function isArxivInput(s: string): boolean {
 }
 
 export function InputBox() {
+  const { t } = useTranslation()
   const { currentPaperId, isStreaming, setSettingsOpen, sendQuestion, contentWidth } = useAppStore()
   const exportPaper = useExportPaper()
   const qc = useQueryClient()
@@ -37,31 +40,31 @@ export function InputBox() {
   const commands: CmdEntry[] = [
     {
       name: '/export',
-      description: '导出到 Obsidian',
+      description: t('inputBox.exportToObsidian'),
       action: async () => {
         if (!currentPaperId) return
         try {
           const result = await exportPaper.mutateAsync(currentPaperId)
-          toast.success(`已导出到 ${result.path}`)
+          toast.success(t('paperList.exportedTo', { path: result.path }))
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : '导出失败')
+          toast.error(err instanceof Error ? err.message : t('paperList.exportFailed'))
         }
       },
     },
     {
       name: '/config',
-      description: '打开设置',
+      description: t('inputBox.openSettings'),
       action: () => setSettingsOpen(true),
     },
     {
       name: '/help',
-      description: '显示帮助',
-      action: () => toast('可用命令: /export /config /help /btw', { duration: 5000 }),
+      description: t('inputBox.showHelp'),
+      action: () => toast(t('inputBox.helpToast'), { duration: 5000 }),
     },
     {
       name: '/btw',
-      description: '提问但不记入上下文',
-      action: () => toast('请使用 /btw <问题> 格式直接在后面输入问题', { duration: 3000 }),
+      description: t('inputBox.btwDescription'),
+      action: () => toast(t('inputBox.btwToast'), { duration: 3000 }),
     },
   ]
 
@@ -97,7 +100,10 @@ export function InputBox() {
     try {
       const res = await fetch('/api/papers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Language': i18n.language === 'en' ? 'en' : 'zh',
+        },
         body: JSON.stringify({ url }),
       })
 
@@ -155,7 +161,7 @@ export function InputBox() {
                   break
                 case 'error':
                   setPendingError(evt.error || 'Unknown error')
-                  toast.error(evt.error || '摘要生成失败')
+                  toast.error(evt.error || t('inputBox.summaryFailed'))
                   break
               }
             } catch { /* skip parse error */ }
@@ -169,22 +175,22 @@ export function InputBox() {
           setCurrentPaperId(data.id)
           qc.invalidateQueries({ queryKey: ['papers'] })
           qc.invalidateQueries({ queryKey: ['paper', data.id] })
-          toast.info(`论文「${data.title || '已存在'}」已存在，已切换到该论文`)
+          toast.info(t('inputBox.paperExists', { title: data.title || t('inputBox.paperExistsFallback') }))
         } else if (data.id) {
           qc.invalidateQueries({ queryKey: ['papers'] })
           setCurrentPaperId(data.id)
-          toast.success('论文已加载')
+          toast.success(t('inputBox.paperLoaded'))
         } else if (data.error) {
           toast.error(data.error)
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '加载失败'
+      const msg = err instanceof Error ? err.message : t('inputBox.loadFailed')
       toast.error(msg)
     } finally {
       setCreatingPaper(false)
     }
-  }, [qc])
+  }, [qc, t])
 
   const handleSend = useCallback(() => {
     const el = inputRef.current
@@ -202,7 +208,7 @@ export function InputBox() {
 
     // If no active paper and input is not an arXiv link, show guidance.
     if (!currentPaperId) {
-      toast('请先输入 arXiv 链接创建一篇论文', { duration: 3000 })
+      toast(t('inputBox.createPaperFirst'), { duration: 3000 })
       return
     }
 
@@ -316,7 +322,7 @@ export function InputBox() {
           <div
             className="absolute bottom-full left-4 right-4 mb-2 rounded-lg shadow-lg overflow-hidden z-50 animate-scale-in"
             role="listbox"
-            aria-label="可用命令"
+            aria-label={t('inputBox.helpToast').split(':')[0]}
             aria-expanded={showCommands}
             style={{
               backgroundColor: 'var(--color-surface)',
@@ -372,12 +378,12 @@ export function InputBox() {
             onKeyDown={handleKeyDown}
             placeholder={
               isStreaming
-                ? '正在生成回复...'
+                ? t('inputBox.generating')
                 : creatingPaper
-                  ? '正在加载论文...'
+                  ? t('inputBox.loadingPaper')
                   : currentPaperId
-                    ? '输入问题，Shift+Enter 换行。输入 / 查看命令...'
-                    : '粘贴 arXiv 链接开始阅读论文'
+                    ? t('inputBox.inputPlaceholder')
+                    : t('inputBox.pasteArxiv')
             }
             disabled={isStreaming || creatingPaper}
             className="flex-1 resize-none rounded-xl px-4 py-2.5 outline-none transition-all duration-200 overflow-y-auto disabled:opacity-50"
@@ -408,7 +414,7 @@ export function InputBox() {
               backgroundColor: 'var(--color-accent)',
               color: '#fff',
             }}
-            aria-label="发送"
+            aria-label={t('inputBox.send')}
           >
             <Send size={15} />
           </button>

@@ -15,20 +15,11 @@
           supportedSystems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
           version = "1.1.1";
 
-          frontendSrc = builtins.path {
-            path = ./frontend;
-            name = "frontend-src";
-            filter = path: type:
-              baseNameOf path != "node_modules"
-              && baseNameOf path != ".git";
-          };
-
           frontend = pkgs.buildNpmPackage {
             pname = "paperagent-frontend";
             inherit version;
-            src = frontendSrc;
-            sourceRoot = "frontend-src";
-            npmDepsHash = "sha256-sE/EqqiuhPBFBoGMue+AQn7pX8XTncmrLSOl4ZQP5jU=";
+            src = lib.cleanSource ./frontend;
+            npmDepsHash = "sha256-43OOkmtn+Z4WDL61sFK1MZ9Wzs4p2OCOPnI6QUVmhJ0=";
 
             postPatch = ''
               substituteInPlace vite.config.ts \

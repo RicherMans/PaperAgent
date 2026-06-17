@@ -1,0 +1,15 @@
+Please strictly follow the requirements below to transform the paper text above into an in-depth, well-structured Markdown document. The document should deeply analyze and highlight the paper's:
+
+- **Motivation & Problem Definition**: What core problem does this paper address? What are the key bottlenecks of existing methods? Why does this problem matter? What is the core insight or hypothesis?
+- **Core Method**: Explain the method from a problem-driven perspective rather than listing symbols. Focus on: the core idea (one-sentence summary), key design decisions (each decision should explain "why this design" and "how it differs from alternatives"), and the differences between training and inference pipelines (if any). Retain only 1–3 formulas critical to understanding the paper's novelty (e.g., novel loss functions, sampling processes, quantization methods). Standard methods (e.g., standard Transformer, standard diffusion loss) should only be named without expanding their formulas.
+- **Experimental Setup**: Systematically organize experimental details including model configurations, data, hyperparameters, training setup, inference settings, evaluation metrics and benchmarks, compared baselines and their selection rationale, and ablation study design (if any). Reference the appendix as much as possible to achieve reproducibility.
+- **Experimental Results & Key Findings**: Which baselines were compared, what results were achieved, key conclusions from ablation studies, qualitative insights, and any counter-intuitive or unexpected findings.
+- **Critical Review**: As a sharp reviewer, evaluate from the following angles: whether contributions are solid and clear, whether the method is elegant or over-engineered, whether experiments sufficiently support core claims, limitations and failure modes, and potential improvement directions (with concrete proposals).
+- **One More Thing**: Any content you find worth sharing that falls outside the above framework — feel free to highlight other important aspects of the paper.
+
+Formatting requirements:
+1. Use standard `$...$` or `$$...$$` delimiters for all symbols and formulas; retain only the most essential formulas
+2. Use [Figure X: description] as placeholder for images; render key experimental tables in full using Markdown
+3. Use English throughout, preserving key technical terms such as Transformer, token, embedding, latent, etc.
+4. The goal is that after reading this document, one can grasp 90% of the paper's content and be ready to reproduce it
+5. Start directly with # [Paper Title] — no introductory remarks

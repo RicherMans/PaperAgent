@@ -1,0 +1,7 @@
+Answer the user's question based on the paper text above.
+
+1. Do not fabricate information that does not exist in the paper
+2. Appropriately cite specific paragraphs, formulas, or data from the paper to support your answer
+3. If the user's question involves knowledge beyond the paper, clearly distinguish between paper content and your supplementary explanation
+4. Use English for your response, preserving key technical terms such as Transformer, token, latent, embedding, etc.
+5. Mathematical formulas must use $ and $$ delimiters: inline formulas use $...$, display formulas use $$...$$. Do not use \( \) or \[ \]

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface InlineConfirmProps {
   open: boolean
@@ -13,13 +14,17 @@ interface InlineConfirmProps {
 export function InlineConfirm({
   open,
   message,
-  confirmLabel = '确认',
-  cancelLabel = '取消',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   onConfirm,
   onCancel,
 }: InlineConfirmProps) {
+  const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
+
+  const resolvedConfirmLabel = confirmLabel ?? t('common.confirm')
+  const resolvedCancelLabel = cancelLabel ?? t('common.cancel')
 
   useEffect(() => {
     if (!open) return
@@ -67,7 +72,7 @@ export function InlineConfirm({
             backgroundColor: 'var(--color-bg-elevated)',
           }}
         >
-          {cancelLabel}
+          {resolvedCancelLabel}
         </button>
         <button
           onClick={onConfirm}
@@ -77,7 +82,7 @@ export function InlineConfirm({
             backgroundColor: danger ? 'var(--color-danger)' : 'var(--color-accent)',
           }}
         >
-          {confirmLabel}
+          {resolvedConfirmLabel}
         </button>
       </div>
     </div>

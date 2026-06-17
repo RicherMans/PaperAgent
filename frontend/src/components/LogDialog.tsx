@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Terminal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAppStore } from '../stores/appStore'
 
 interface LogEntry {
@@ -12,6 +13,7 @@ interface LogsResponse {
 }
 
 export function LogDialog() {
+  const { t } = useTranslation()
   const { isLogOpen, setLogOpen } = useAppStore()
   const [visible, setVisible] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -104,7 +106,7 @@ export function LogDialog() {
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
           >
             <Terminal size={15} style={{ color: 'var(--color-accent)' }} />
-            服务器日志
+            {t('logDialog.title')}
           </h2>
           <button
             onClick={close}
@@ -128,7 +130,7 @@ export function LogDialog() {
         >
           {logs.length === 0 && (
             <div className="flex items-center justify-center h-full" style={{ color: '#888' }}>
-              <span>暂无日志</span>
+              <span>{t('logDialog.noLogs')}</span>
             </div>
           )}
           {logs.map((entry, i) => (

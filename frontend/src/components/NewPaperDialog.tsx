@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Link, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { useAppStore } from '../stores/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 export function NewPaperDialog() {
+  const { t } = useTranslation()
   const {
     isNewPaperOpen, setNewPaperOpen,
     setCurrentPaperId,
@@ -64,7 +67,10 @@ export function NewPaperDialog() {
     try {
       const res = await fetch('/api/papers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Language': i18n.language === 'en' ? 'en' : 'zh',
+        },
         body: JSON.stringify({ url: trimmed }),
         signal: controller.signal,
       })
@@ -141,12 +147,12 @@ export function NewPaperDialog() {
           setCurrentPaperId(data.id)
           setNewPaperOpen(false)
           setUrl('')
-          toast.success('论文已加载')
+          toast.success(t('newPaper.paperLoaded'))
         }
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
-      const msg = err instanceof Error ? err.message : '加载失败'
+      const msg = err instanceof Error ? err.message : t('newPaper.loadFailed')
       setError(msg)
       toast.error(msg)
     } finally {
@@ -187,7 +193,7 @@ export function NewPaperDialog() {
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-text)' }}
           >
             <Link size={15} style={{ color: 'var(--color-accent)' }} />
-            新建论文
+            {t('newPaper.title')}
           </h2>
           <button
             onClick={() => close()}
@@ -204,7 +210,7 @@ export function NewPaperDialog() {
             className="text-xs block mb-2"
             style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-ui)' }}
           >
-            输入论文 URL（支持 arXiv 链接）
+            {t('newPaper.urlLabel')}
           </label>
           <input
             type="text"
@@ -212,7 +218,7 @@ export function NewPaperDialog() {
             onChange={(e) => { setUrl(e.target.value); setError(null) }}
             onKeyDown={handleKeyDown}
             placeholder="https://arxiv.org/abs/..."
-            aria-label="论文 URL"
+            aria-label={t('newPaper.urlLabel')}
             autoFocus
             disabled={loading}
             className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200"
@@ -248,7 +254,7 @@ export function NewPaperDialog() {
                 backgroundColor: 'var(--color-bg-elevated)',
               }}
             >
-              取消
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSubmit}
@@ -257,7 +263,7 @@ export function NewPaperDialog() {
               style={{ fontFamily: 'var(--font-ui)', backgroundColor: 'var(--color-accent)' }}
             >
               {loading && <Loader2 size={14} className="animate-spin inline mr-1.5" />}
-              {loading ? '加载中...' : '加载'}
+              {loading ? t('newPaper.loading') : t('newPaper.load')}
             </button>
           </div>
         </div>
