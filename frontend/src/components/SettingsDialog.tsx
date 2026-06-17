@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Loader2, Save } from 'lucide-react'
+import { X, Loader2, Save, Languages } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import { useAppStore } from '../stores/appStore'
 import { toast } from 'sonner'
 
@@ -67,6 +68,7 @@ export function SettingsDialog() {
   const [promptEdits, setPromptEdits] = useState<Record<string, string>>({})
   const [promptsLoading, setPromptsLoading] = useState(false)
   const [promptsSaving, setPromptsSaving] = useState(false)
+  const [loadingEnglish, setLoadingEnglish] = useState(false)
 
   // Feishu status
   const [feishuStatus, setFeishuStatus] = useState<{ connected: boolean; enabled: boolean; last_error?: string } | null>(null)
@@ -153,6 +155,22 @@ export function SettingsDialog() {
     finally { setPromptsSaving(false) }
   }
 
+  const handleToggleLanguage = async () => {
+    setLoadingEnglish(true)
+    try {
+      const res = await fetch('/api/prompts/en')
+      if (!res.ok) throw new Error('Failed to load English prompts')
+      const data: PromptInfo[] = await res.json()
+      const edits: Record<string, string> = {}
+      data.forEach((p) => { edits[p.name] = p.content })
+      setPromptEdits(edits)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load prompts')
+    } finally {
+      setLoadingEnglish(false)
+    }
+  }
+
   const updateForm = (key: keyof ConfigForm, value: string) => { setForm((f) => ({ ...f, [key]: value })); if (key === 'api_key') setApiKeyDirty(true) }
 
   const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-sm outline-none focus:ring-2 focus:ring-blue-500'
@@ -226,6 +244,17 @@ export function SettingsDialog() {
             </div>
           ) : (promptsLoading ? <div className="flex items-center justify-center py-8"><Loader2 size={24} className="animate-spin text-gray-400" /></div> : (
             <div className="space-y-5">
+              <div className="flex items-center justify-end">
+                <button
+                  onClick={handleToggleLanguage}
+                  disabled={loadingEnglish}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400"
+                  title={i18n.language === 'en' ? t('settings.loadChineseDefaultsTooltip') : t('settings.loadEnglishDefaultsTooltip')}
+                >
+                  {loadingEnglish ? <Loader2 size={12} className="animate-spin" /> : <Languages size={12} />}
+                  {i18n.language === 'en' ? t('settings.loadChineseDefaults') : t('settings.loadEnglishDefaults')}
+                </button>
+              </div>
               {prompts.map((p) => (
                 <div key={p.name}>
                   <div className="flex items-center gap-2 mb-1.5">

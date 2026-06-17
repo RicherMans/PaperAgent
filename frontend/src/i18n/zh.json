@@ -99,7 +99,11 @@
     "systemPrompt": "系统提示词 (system)",
     "heavyPrompt": "初始总结 (heavy)",
     "lightPrompt": "对话问答 (light)",
-    "summarizePrompt": "对话总结 (summarize)"
+    "summarizePrompt": "对话总结 (summarize)",
+    "loadEnglishDefaults": "EN",
+    "loadChineseDefaults": "中文",
+    "loadEnglishDefaultsTooltip": "加载英文默认提示词",
+    "loadChineseDefaultsTooltip": "加载中文默认提示词"
   },
   "chatView": {
     "selectPaper": "选择一篇论文开始阅读",

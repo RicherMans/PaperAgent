@@ -99,7 +99,11 @@
     "systemPrompt": "System Prompt (system)",
     "heavyPrompt": "Initial Summary (heavy)",
     "lightPrompt": "Chat Q&A (light)",
-    "summarizePrompt": "Chat Summary (summarize)"
+    "summarizePrompt": "Chat Summary (summarize)",
+    "loadEnglishDefaults": "EN",
+    "loadChineseDefaults": "中文",
+    "loadEnglishDefaultsTooltip": "Load English default prompts",
+    "loadChineseDefaultsTooltip": "Load Chinese default prompts"
   },
   "chatView": {
     "selectPaper": "Select a paper to start reading",

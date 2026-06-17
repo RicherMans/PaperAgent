@@ -1220,6 +1220,29 @@ func (s *Server) handleGetPrompts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleGetEnglishPrompts(w http.ResponseWriter, r *http.Request) {
+	type promptInfo struct {
+		Name    string `json:"name"`
+		Content string `json:"content"`
+		Source  string `json:"source"`
+	}
+	enPrompts := map[string]string{
+		"system":    prompt.SystemPromptEN,
+		"heavy":     prompt.HeavyPromptEN,
+		"light":     prompt.LightPromptEN,
+		"summarize": prompt.SummarizePromptEN,
+	}
+	var result []promptInfo
+	for _, name := range prompt.BuiltinNames() {
+		result = append(result, promptInfo{
+			Name:    name,
+			Content: enPrompts[name],
+			Source:  "builtin",
+		})
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handleSavePrompts(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 

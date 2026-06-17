@@ -74,6 +74,7 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
 	mux.HandleFunc("GET /api/prompts", s.handleGetPrompts)
+	mux.HandleFunc("GET /api/prompts/en", s.handleGetEnglishPrompts)
 	mux.HandleFunc("POST /api/prompts", s.handleSavePrompts)
 	mux.HandleFunc("GET /api/logs", s.handleGetLogs)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
