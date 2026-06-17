@@ -332,13 +332,13 @@ just clean
 
 ```bash
 # 运行
-nix run github:RicherMans/PaperAgent
+nix run github:happyTonakai/PaperAgent
 
 # 带参数
-nix run github:RicherMans/PaperAgent -- https://arxiv.org/abs/2301.00001
+nix run github:happyTonakai/PaperAgent -- https://arxiv.org/abs/2301.00001
 
 # 构建
-nix build github:RicherMans/PaperAgent
+nix build github:happyTonakai/PaperAgent
 ```
 
 ## 许可
